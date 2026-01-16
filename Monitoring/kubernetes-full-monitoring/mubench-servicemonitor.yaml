@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mubench-services
+  namespace: observability
+  labels:
+    release: kube-prom-stack
+spec:
+  selector:
+    matchExpressions:
+    - { key: app, operator: In, values: ["s0", "s1", "sdb1"] }
+  namespaceSelector:
+    any: true
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 10s
