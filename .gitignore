@@ -4,6 +4,7 @@
 # Locally generated files
 SimulationWorkspace/
 myConfigs/
+Testing/results/
 
 # mac osx Finder
 .DS_Store
