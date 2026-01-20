@@ -18,7 +18,7 @@ CONFIG_DIR="${PROJECT_DIR}/Configs"
 MONITORING_DIR="${PROJECT_DIR}/Monitoring"
 TEST_DIR="${PROJECT_DIR}/Testing"
 RESULTS_DIR="${TEST_DIR}/results"
-NAMESPACE="mubench"
+NAMESPACE="default"
 
 PROM_LOG="/tmp/prometheus_portforward.log"
 GRAFANA_LOG="/tmp/grafana_portforward.log"
@@ -40,26 +40,19 @@ error() { echo -e "${RED}❌ $*${RESET}" >&2; exit 1; }
 wait_for_pods() {
   log "Esperando a que los pods de muBench estén corriendo..."
   for _ in {1..30}; do
-    READY=$(microk8s kubectl get pods -n default 2>/dev/null | grep -E 's0|s1|sdb1|gw-nginx' | grep -c "Running" || true)
-    (( READY >= 3 )) && { success "Pods de muBench listos."; return 0; }
+    READY=$(microk8s kubectl get pods -n $NAMESPACE 2>/dev/null | grep -E 's0|s1|sdb1|gw-nginx|api-demo' | grep -c "Running" || true)
+    (( READY >= 4 )) && { success "Pods de muBench listos."; return 0; }
     sleep 5
   done
   warn "Algunos pods no están completamente listos. Continuando..."
 }
 
 enable_dashboard() {
-  log "🧩 Verificando Kubernetes Dashboard..."
-
-  if ! microk8s status --wait-ready | grep -q "dashboard: enabled"; then
-    log "🔧 Habilitando dashboard..."
-    sudo microk8s enable dashboard || warn "No se pudo habilitar el dashboard automáticamente."
-  fi
-
-  log "🔐 Verificando RBAC..."
+  log "🧩 Configurando Kubernetes Dashboard..."
+  sudo microk8s enable dashboard || true
   sudo microk8s enable rbac || true
 
   if ! sudo microk8s kubectl get sa dashboard-admin -n kube-system >/dev/null 2>&1; then
-    log "👤 Creando ServiceAccount y ClusterRoleBinding..."
     sudo microk8s kubectl apply -f - <<EOF
 apiVersion: v1
 kind: ServiceAccount
@@ -82,33 +75,18 @@ subjects:
 EOF
   fi
 
-  log "⏳ Esperando que el pod del dashboard esté 'Running'..."
-  for _ in {1..30}; do
-    STATUS=$(sudo microk8s kubectl get pods -n kube-system -l k8s-app=kubernetes-dashboard -o jsonpath="{.items[0].status.phase}" 2>/dev/null || true)
-    [[ "$STATUS" == "Running" ]] && break
-    sleep 5
-  done
-
-  if ! sudo lsof -i:10443 >/dev/null 2>&1; then
-    log "🔌 Iniciando port-forward de Dashboard (puerto 10443)..."
-    nohup sudo microk8s kubectl port-forward -n kube-system service/kubernetes-dashboard 10443:443 >"$DASH_LOG" 2>&1 &
-    sleep 5
-  else
-    warn "El puerto 10443 ya está ocupado. Saltando port-forward."
-  fi
-
-  success "✅ Dashboard disponible en: https://localhost:10443"
+  nohup sudo microk8s kubectl port-forward -n kube-system service/kubernetes-dashboard 10443:443 >"$DASH_LOG" 2>&1 &
+  sleep 5
 
   DASH_TOKEN=$(sudo microk8s kubectl -n kube-system create token dashboard-admin 2>/dev/null || true)
-  [[ -z "$DASH_TOKEN" ]] && warn "⚠️ No se pudo crear token automáticamente. Ejecuta manualmente: sudo microk8s kubectl -n kube-system create token dashboard-admin"
   echo "$DASH_TOKEN"
 }
 
 # ================================================================
-# 🧠 Reconfiguración del gateway para demo y servicios simulados
+# 🔧 Gateway Nginx / Microservicios
 # ================================================================
 fix_nginx_dns() {
-  log "🔧 Reconfigurando gateway gw-nginx con ruta demo y servicios simulados..."
+  log "🔧 Reconfigurando gateway gw-nginx con rutas demo y servicios simulados..."
 
   sudo microk8s kubectl apply -f - <<EOF
 apiVersion: v1
@@ -120,98 +98,217 @@ data:
   default.conf: |
     server {
         listen 80;
-        resolver kube-dns.kube-system.svc.cluster.local valid=10s ipv6=off;
+        resolver 10.152.183.10 valid=10s ipv6=off;
 
-        # --- Ruta demo ---
+        # --- Rutas demo ---
         location /demo/ {
             rewrite ^/demo/?(.*)\$ /\$1 break;
             proxy_pass http://api-demo.default.svc.cluster.local:80;
-            proxy_set_header Host \$host;
-            proxy_set_header X-Real-IP \$remote_addr;
-            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto \$scheme;
         }
-
-        # --- Root ---
         location / {
             proxy_pass http://api-demo.default.svc.cluster.local:80;
         }
 
-        # --- Rutas simuladas ---
+        # --- Microservicios simulados ---
         location /service0/ {
-            proxy_pass http://s0.default.svc.cluster.local:80;
+            proxy_pass http://service0.default.svc.cluster.local:80/;
         }
         location /service1/ {
-            proxy_pass http://s1.default.svc.cluster.local:80;
+            proxy_pass http://service1.default.svc.cluster.local:80/;
         }
         location /database/ {
-            proxy_pass http://sdb1.default.svc.cluster.local:80;
+            proxy_pass http://service-db.default.svc.cluster.local:80/;
         }
     }
 EOF
 
-  sudo microk8s kubectl delete pod -l app=gw-nginx -n default --force --grace-period=0
-  success "✅ Configuración de gw-nginx actualizada con soporte para /demo"
+  if ! sudo microk8s kubectl get deployment gw-nginx -n default >/dev/null 2>&1; then
+    warn "❌ No se encontró el deployment 'gw-nginx', se recreará..."
+    sudo microk8s kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gw-nginx
+  namespace: default
+  labels:
+    app: gw-nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gw-nginx
+  template:
+    metadata:
+      labels:
+        app: gw-nginx
+    spec:
+      containers:
+      - name: gw-nginx
+        image: nginx:1.25
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: gw-nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gw-nginx
+  namespace: default
+  labels:
+    app: gw-nginx
+spec:
+  type: NodePort
+  selector:
+    app: gw-nginx
+  ports:
+    - name: http
+      port: 80
+      nodePort: 31113
+EOF
+  fi
+
+  sudo microk8s kubectl rollout restart deployment gw-nginx -n default
+  log "⏳ Esperando que gw-nginx esté Running..."
+  for i in {1..20}; do
+    STATUS=$(sudo microk8s kubectl get pods -l app=gw-nginx -n default -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "")
+    [[ "$STATUS" == "Running" ]] && { success "✅ Gateway listo."; sleep 5; return 0; }
+    sleep 5
+  done
+  warn "⚠️ gw-nginx no alcanzó estado Running, continuaré de todas formas..."
 }
 
 # ================================================================
-# 🧩 Verificar e Instalar Apache JMeter
+# 🧪 JMeter Tests
 # ================================================================
 check_jmeter() {
-  log "Verificando instalación de Apache JMeter..."
-  if ! command -v jmeter &>/dev/null; then
-    warn "JMeter no está instalado."
-    read -p "¿Deseas instalarlo automáticamente? (s/n): " opt
-    if [[ "$opt" =~ ^[sS]$ ]]; then
-      sudo apt update && sudo apt install -y jmeter
-      success "JMeter instalado correctamente."
-    else
-      error "No se puede ejecutar la prueba sin JMeter."
-    fi
-  else
-    success "JMeter detectado correctamente."
-  fi
+  log "Verificando instalación de JMeter..."
+  command -v jmeter >/dev/null 2>&1 || { error "❌ JMeter no encontrado. Instálalo antes de continuar."; }
+  success "✅ JMeter detectado correctamente."
+}
+
+run_jmeter_tests() {
+  check_jmeter
+
+  GW_PORT=$(microk8s kubectl get svc gw-nginx -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "")
+  GW_IP="127.0.0.1"
+  [[ -z "$GW_PORT" ]] && { warn "❌ No se detectó puerto de gw-nginx"; return; }
+
+  declare -A ENDPOINTS=(
+    ["demo"]="/demo/"
+    ["service0"]="/service0/"
+    ["service1"]="/service1/"
+    ["database"]="/database/"
+  )
+
+  mkdir -p "${RESULTS_DIR}"
+
+  for NAME in "${!ENDPOINTS[@]}"; do
+    TARGET_URL="http://${GW_IP}:${GW_PORT}${ENDPOINTS[$NAME]}"
+    log "Verificando conexión con ${TARGET_URL}..."
+
+    RETRY=0
+    until curl -s --max-time 5 "$TARGET_URL" >/dev/null 2>&1 || [[ $RETRY -ge 5 ]]; do
+      RETRY=$((RETRY+1))
+      sleep 2
+    done
+
+    [[ $RETRY -ge 5 ]] && { warn "⚠️ ${NAME} no responde, se omitirá."; continue; }
+
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    RESULT_FILE="${RESULTS_DIR}/results_${NAME}_${TIMESTAMP}.jtl"
+
+    log "🏁 Ejecutando JMeter contra ${TARGET_URL}"
+    jmeter -n -t "${TEST_DIR}/mubench_baseline.jmx" \
+      -JTARGET_URL="${TARGET_URL}" \
+      -JTHREADS=50 \
+      -JDURATION=60 \
+      -l "${RESULT_FILE}" || warn "⚠️ Error al ejecutar prueba JMeter para ${NAME}"
+
+    success "✅ Prueba ${NAME} completada. Resultados en: ${RESULT_FILE}"
+  done
+}
+
+create_grafana_dashboard() {
+  log "🔧 Creando dashboard rápido en Grafana..."
+
+  GRAFANA_URL="http://localhost:3000"
+  GRAFANA_USER="admin"
+  GRAFANA_PASS=$(microk8s kubectl get secret -n observability kube-prom-stack-grafana -o jsonpath='{.data.admin-password}' | base64 --decode)
+
+  DASHBOARD_JSON=$(cat <<EOF
+{
+  "dashboard": {
+    "id": null,
+    "title": "MuBench JMeter Metrics",
+    "uid": "mubench-jmeter",
+    "timezone": "browser",
+    "panels": [
+      {
+        "type": "graph",
+        "title": "Latency (ms)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(http_request_duration_seconds_sum[1m])/rate(http_request_duration_seconds_count[1m])",
+            "legendFormat": "\$job-\$instance"
+          }
+        ],
+        "gridPos": {"x":0,"y":0,"w":12,"h":6}
+      },
+      {
+        "type": "graph",
+        "title": "Throughput (req/s)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[1m])",
+            "legendFormat": "\$job-\$instance"
+          }
+        ],
+        "gridPos": {"x":12,"y":0,"w":12,"h":6}
+      }
+    ]
+  },
+  "overwrite": true
+}
+EOF
+)
+
+  # Crear dashboard usando API de Grafana
+  curl -s -X POST -H "Content-Type: application/json" \
+       -u "${GRAFANA_USER}:${GRAFANA_PASS}" \
+       -d "${DASHBOARD_JSON}" \
+       "${GRAFANA_URL}/api/dashboards/db" >/dev/null
+
+  success "✅ Dashboard 'MuBench JMeter Metrics' creado en Grafana: ${GRAFANA_URL}"
 }
 
 # ================================================================
-# 🚀 Inicio de servicios + Prueba de carga
+# 🚀 Inicio de servicios
 # ================================================================
 start_services() {
-  echo -e "${GREEN}============================================================${RESET}"
-  echo -e "${GREEN} 🚀 Iniciando despliegue automatizado de MuBench${RESET}"
-  echo -e "${GREEN}============================================================${RESET}"
-
-  command -v microk8s >/dev/null 2>&1 || error "MicroK8s no está instalado. Instálalo con: sudo snap install microk8s --classic"
-
-  log "Actualizando sistema..."
-  sudo apt update -y >/dev/null && sudo apt upgrade -y >/dev/null
-
-  log "Habilitando complementos de MicroK8s..."
-  sudo microk8s enable dns storage helm3 metrics-server prometheus grafana || true
-
-  log "Verificando namespace '${NAMESPACE}'..."
-  microk8s kubectl get ns "${NAMESPACE}" >/dev/null 2>&1 || microk8s kubectl create ns "${NAMESPACE}"
-
-  log "Instalando dependencias de Python..."
-  pip install -q --upgrade argcomplete python-igraph==0.10.6 pycairo kubernetes google-auth
-
-  mkdir -p "${SIMULATION_DIR}" "${MONITORING_DIR}" "${RESULTS_DIR}"
-
-  log "Ejecutando AutoPilot de muBench..."
-  cd "${PROJECT_DIR}/Autopilots/K8sAutopilot"
-  python3 K8sAutopilot.py -c "${CONFIG_DIR}/K8sAutopilotConf.json"
-  success "Modelo y despliegue generados correctamente."
+  log "Iniciando despliegue automatizado MuBench..."
+  microk8s status --wait-ready >/dev/null 2>&1 || error "❌ MicroK8s no está listo"
 
   wait_for_pods
   fix_nginx_dns
 
-  log "Iniciando port-forward de Prometheus y Grafana..."
-  sudo pkill -f "port-forward -n observability" || true
-  nohup microk8s kubectl port-forward -n observability svc/kube-prom-stack-kube-prome-prometheus 9090:9090 >"${PROM_LOG}" 2>&1 &
-  nohup microk8s kubectl port-forward -n observability svc/kube-prom-stack-grafana 3000:80 >"${GRAFANA_LOG}" 2>&1 &
-
+  log "Iniciando port-forward Prometheus y Grafana..."
+  nohup microk8s kubectl port-forward -n observability svc/kube-prom-stack-kube-prome-prometheus 9090:9090 >"$PROM_LOG" 2>&1 &
+  nohup microk8s kubectl port-forward -n observability svc/kube-prom-stack-grafana 3000:80 >"$GRAFANA_LOG" 2>&1 &
+  
   log "Configurando Dashboard de Kubernetes..."
   DASH_TOKEN=$(enable_dashboard || true)
+
+  run_jmeter_tests
+  create_grafana_dashboard
+
 
   log "Obteniendo credenciales..."
   GRAFANA_PASS=$(microk8s kubectl get secret -n observability kube-prom-stack-grafana -o jsonpath='{.data.admin-password}' | base64 --decode)
@@ -240,69 +337,18 @@ start_services() {
   chmod 600 "${CRED_FILE}"
   success "Credenciales guardadas en: ${CRED_FILE}"
 
-  # ================================================================
-  # 🧪 EJECUTAR PRUEBA JMETER AUTOMÁTICAMENTE
-  # ================================================================
-  check_jmeter
-  log "Ejecutando prueba de carga JMeter (baseline demo)..."
-
-  GW_PORT=$(microk8s kubectl get svc gw-nginx -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "")
-  GW_IP="127.0.0.1"
-  TARGET_URL="http://${GW_IP}:${GW_PORT}/demo/"
-
-  if [[ -z "$GW_PORT" ]]; then
-    warn "No se pudo detectar el puerto de gw-nginx. Saltando prueba JMeter."
-    return 0
-  fi
-
-  log "Verificando conexión con ${TARGET_URL}..."
-  if ! curl -s --max-time 5 "${TARGET_URL}" >/dev/null 2>&1; then
-    warn "⚠️  El servicio gw-nginx no responde en ${TARGET_URL}. Esperando 10 segundos..."
-    sleep 10
-  fi
-
-  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-  RESULT_FILE="${RESULTS_DIR}/results_${TIMESTAMP}.jtl"
-
-  log "🏁 Ejecutando JMeter contra ${TARGET_URL}"
-  jmeter -n -t "${TEST_DIR}/mubench_baseline.jmx" \
-    -JTARGET_URL="${TARGET_URL}" \
-    -JTHREADS=50 \
-    -JDURATION=60 \
-    -l "${RESULT_FILE}"
-
-  success "✅ Prueba completada. Resultados guardados en:"
-  echo "   ${RESULT_FILE}"
-
-  echo
-  success "Despliegue completo. Accesos disponibles:"
-  echo -e "${CYAN}🔗 Grafana:${RESET}     http://localhost:3000"
-  echo -e "${CYAN}🔗 Prometheus:${RESET}  http://localhost:9090"
-  echo -e "${CYAN}🔗 Dashboard:${RESET}   https://localhost:10443"
+  success "✅ Despliegue completo. Accesos:"
+  echo -e "${CYAN}Grafana:${RESET}     http://localhost:3000"
+  echo -e "${CYAN}Prometheus:${RESET}  http://localhost:9090"
+  echo -e "${CYAN}Dashboard:${RESET}   https://localhost:10443"
 }
-
-# ================================================================
-# 📊 Importar Dashboard de Grafana
-# ================================================================
-if [[ -f "${MONITORING_DIR}/mubench-dashboard.json" ]]; then
-  log "Importando dashboard personalizado de MuBench a Grafana..."
-  curl -s -X POST http://admin:${GRAFANA_PASS}@localhost:3000/api/dashboards/db \
-    -H "Content-Type: application/json" \
-    -d "{\"dashboard\": $(cat ${MONITORING_DIR}/mubench-dashboard.json), \"overwrite\": true}" >/dev/null 2>&1 \
-    && success "Dashboard importado correctamente en Grafana" \
-    || warn "No se pudo importar automáticamente el dashboard. Puedes hacerlo manualmente en Grafana → Dashboards → Import."
-else
-  warn "No se encontró el archivo ${MONITORING_DIR}/mubench-dashboard.json"
-fi
-
 
 # ================================================================
 # 🛑 Detener servicios
 # ================================================================
 stop_services() {
-  log "Deteniendo port-forwards y limpiando..."
-  sudo pkill -f "port-forward -n observability" || true
-  sudo pkill -f "port-forward -n kube-system service/kubernetes-dashboard" || true
+  log "Deteniendo port-forwards..."
+  sudo pkill -f "port-forward" || true
   rm -f "${PROM_LOG}" "${GRAFANA_LOG}" "${DASH_LOG}"
   success "Servicios detenidos correctamente."
 }
