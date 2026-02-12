@@ -1,0 +1,35 @@
+# ===============================
+# 🌐 Forzar IPv4 (MicroK8s fix)
+# ===============================
+kubeControllerManager:
+  service:
+    ipFamilyPolicy: SingleStack
+    ipFamilies:
+      - IPv4
+
+kubeScheduler:
+  service:
+    ipFamilyPolicy: SingleStack
+    ipFamilies:
+      - IPv4
+
+kubeProxy:
+  enabled: false
+
+# ===============================
+# 🧱 Node exporter (evita error mount MicroK8s)
+# ===============================
+prometheus-node-exporter:
+  enabled: false
+
+# ===============================
+# 📡 JMeter → Prometheus
+# ===============================
+prometheus:
+  prometheusSpec:
+    additionalScrapeConfigs:
+      - job_name: "jmeter"
+        honor_labels: true
+        static_configs:
+          - targets:
+              - pushgateway.observability.svc.cluster.local:9091

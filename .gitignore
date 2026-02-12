@@ -5,6 +5,7 @@
 SimulationWorkspace/
 myConfigs/
 Testing/results/
+node_modules/
 
 # mac osx Finder
 .DS_Store
