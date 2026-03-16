@@ -5,6 +5,20 @@
 SimulationWorkspace/
 myConfigs/
 Testing/results/
+Testing/plots/
+RealisticServices/results/
+
+# Heavy generated experiment artifacts
+experiments/**/results/
+experiments/**/analysis/output/
+experiments/**/analysis/output-final/
+
+# Bundled third-party distribution (very large)
+experiments/02-mtls-service-mesh/istio-1.22.3/
+
+# Local logs and reports
+jmeter.log
+Docs/line-report-*.md
 
 # mac osx Finder
 .DS_Store
