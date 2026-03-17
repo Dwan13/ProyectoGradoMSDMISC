@@ -1,323 +1,273 @@
-# Diseño Experimental: Evaluación de Latencia y Overhead de TLS en Arquitecturas de Microservicios
+# Diseno Experimental Actualizado: Micros Realistas + Controles C1-C4
 
-## 1. Resumen Ejecutivo
+## 1. Proposito
 
-Este documento presenta el diseño experimental para evaluar el impacto del protocolo de comunicación (HTTP vs HTTPS) en el rendimiento de una arquitectura de microservicios desplegada en Kubernetes. El estudio se centra en cuatro métricas clave: latencia inter-servicio, throughput, transferencia de bytes en red, y overhead computacional al activar TLS.
+Este documento actualiza el diseno experimental para reflejar el estado real del proyecto:
 
----
+1. Capa base muBench.
+2. Capa de microservicios realistas (auth-service, api-service, data-service, postgres).
+3. Ejecucion hibrida automatizada desde el script principal.
+4. Evaluacion de controles de seguridad C1-C4 con evidencia cuantitativa.
 
-## 2. Marco Teórico
-
-### 2.1 Contexto
-Las arquitecturas de microservicios han transformado el desarrollo de aplicaciones empresariales, permitiendo escalabilidad horizontal, despliegues independientes y tolerancia a fallos. Sin embargo, la comunicación inter-servicio introduce latencias adicionales y desafíos de seguridad.
-
-### 2.2 Problema de Investigación
-**Pregunta principal:** ¿Cuál es el overhead cuantificable de implementar TLS/HTTPS en comunicaciones inter-servicio en una arquitectura de microservicios?
-
-**Preguntas secundarias:**
-1. ¿Cómo afecta TLS a la latencia promedio y percentiles (P95, P99)?
-2. ¿Qué impacto tiene TLS en el throughput máximo del sistema?
-3. ¿Cuánto overhead de CPU y memoria introduce el cifrado TLS?
-4. ¿Cuál es el volumen de bytes adicionales transferidos por el handshake TLS?
-
-### 2.3 Justificación
-- **Relevancia práctica:** Las organizaciones deben balancear seguridad y rendimiento
-- **Gap de conocimiento:** Falta evidencia cuantitativa en entornos Kubernetes reales
-- **Aplicabilidad:** Resultados directamente aplicables a decisiones arquitectónicas
-
----
-
-## 3. Objetivos
-
-### 3.1 Objetivo General
-Cuantificar el impacto del protocolo de comunicación (HTTP vs HTTPS) en el rendimiento de una arquitectura de microservicios basada en Kubernetes.
-
-### 3.2 Objetivos Específicos
-1. **OE1:** Medir la latencia inter-servicio (promedio, P95, P99) bajo protocolos HTTP y HTTPS
-2. **OE2:** Determinar el throughput máximo (req/s) en ambos escenarios
-3. **OE3:** Cuantificar el overhead de CPU y memoria del cifrado TLS
-4. **OE4:** Medir el volumen de bytes transferidos en red (payload + overhead)
-5. **OE5:** Analizar la relación entre carga de trabajo y degradación de rendimiento
-
----
-
-## 4. Hipótesis
-
-### 4.1 Hipótesis Principal
-**H1:** La implementación de TLS/HTTPS incrementará significativamente la latencia (P95 > 15%) y reducirá el throughput (> 10%) comparado con HTTP.
-
-### 4.2 Hipótesis Secundarias
-- **H2:** El overhead de latencia será proporcional al número de saltos inter-servicio
-- **H3:** El uso de CPU aumentará en promedio 50-70% con TLS
-- **H4:** El tamaño de datos transferidos aumentará 5-10% debido al handshake TLS
-- **H5:** El impacto será más pronunciado bajo alta carga (> 50 req/s)
-
----
-
-## 5. Variables del Experimento
-
-### 5.1 Variable Independiente
-**Protocolo de comunicación:**
-- **Nivel 1:** HTTP (sin cifrado)
-- **Nivel 2:** HTTPS (TLS 1.3)
-
-### 5.2 Variables Dependientes
-| Métrica | Unidad | Herramienta de Medición | Frecuencia |
-|---------|--------|------------------------|------------|
-| Latencia (avg, P95, P99) | milisegundos (ms) | k6 + Prometheus | Continua (1s) |
-| Throughput | requests/segundo | k6 | Continua (1s) |
-| CPU utilization | % uso de núcleo | cAdvisor/Prometheus | 15s |
-| Memoria utilization | MB | cAdvisor/Prometheus | 15s |
-| Network bytes sent | bytes | Prometheus (node_exporter) | 15s |
-| Network bytes received | bytes | Prometheus (node_exporter) | 15s |
-| Tasa de errores | % de requests fallidos | k6 | Continua |
-
-### 5.3 Variables Controladas
-- **Infraestructura:** MicroK8s 1.28+ en mismo hardware
-- **Recursos por pod:** 500m CPU, 512Mi RAM (límites consistentes)
-- **Número de réplicas:** 1 por servicio (sin auto-scaling)
-- **Versión de software:** Python 3.8, Flask 2.3, Gunicorn 21.2
-- **Complejidad de procesamiento:** compute_pi con range_complexity=[50,100]
-- **Tamaño de respuesta:** mean_response_size=10 KB
-
-### 5.4 Variables de Confusión (mitigadas)
-- **Caché de DNS:** Pre-calentamiento de conexiones antes de mediciones
-- **Garbage collection:** Reinicio de pods entre tratamientos
-- **Carga del sistema:** Experimentos ejecutados en modo single-user, sin otras cargas
-- **Hora del día:** Todos los experimentos se ejecutan en la misma ventana horaria (10:00-12:00)
-
----
-
-## 6. Diseño Experimental
-
-### 6.1 Tipo de Diseño
-**Diseño experimental de medidas repetidas (within-subjects):**
-- Mismo sistema evaluado bajo dos condiciones (HTTP vs HTTPS)
-- Múltiples repeticiones para validez estadística
-- Orden aleatorizado para evitar efectos de orden
-
-### 6.2 Arquitectura del Sistema Bajo Prueba
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     KUBERNETES CLUSTER                       │
-│  ┌────────────┐       ┌────────────┐       ┌────────────┐  │
-│  │   Pod s0   │──────▶│   Pod s1   │──────▶│  Pod sdb1  │  │
-│  │  (Gateway) │ HTTP/ │ (Validator)│ HTTP/ │ (Database) │  │
-│  │            │ HTTPS │            │ HTTPS │            │  │
-│  └────────────┘       └────────────┘       └────────────┘  │
-│        │                    │                    │          │
-│        └────────────────────┴────────────────────┘          │
-│                           │                                 │
-│                    ┌──────▼────────┐                        │
-│                    │  Prometheus   │                        │
-│                    │   (Metrics)   │                        │
-│                    └──────┬────────┘                        │
-│                           │                                 │
-└───────────────────────────┼─────────────────────────────────┘
-                            │
-                     ┌──────▼────────┐
-                     │    Grafana    │
-                     │ (Visualization)│
-                     └───────────────┘
-           
-┌─────────────┐
-│  k6 Client  │──────▶ s0 (port-forward)
-│ (Load Test) │
-└─────────────┘
-```
-
-**Flujo de comunicación:**
-1. k6 envía requests a `s0/process`
-2. s0 ejecuta `compute_pi()` y llama a `s1/validate`
-3. s1 ejecuta `compute_pi()` y llama a `sdb1/query`
-4. sdb1 ejecuta `compute_pi()` y retorna resultado
-5. Respuestas se propagan de vuelta (sdb1 → s1 → s0 → k6)
-
-### 6.3 Tratamientos Experimentales
-
-#### Tratamiento A: HTTP (Baseline)
-```yaml
-Configuración:
-  - COMM_PROTOCOL: http
-  - TLS: deshabilitado
-  - Puerto: 80
-  - Certificados: no aplicable
-```
-
-#### Tratamiento B: HTTPS (TLS 1.3)
-```yaml
-Configuración:
-  - COMM_PROTOCOL: https
-  - TLS Version: 1.3
-  - Cipher Suite: TLS_AES_256_GCM_SHA384
-  - Puerto: 443
-  - Certificados: Auto-firmados (RSA 4096-bit)
-  - CN: *.default.svc.cluster.local
-```
-
-### 6.4 Niveles de Carga de Trabajo
-Para evaluar escalabilidad, se prueban 5 niveles de carga:
-
-| Nivel | VUs (Virtual Users) | Requests esperados/s | Duración |
-|-------|---------------------|---------------------|----------|
-| Bajo | 5 | ~20-30 | 5 min |
-| Medio-Bajo | 10 | ~50-70 | 5 min |
-| Medio | 25 | ~100-150 | 5 min |
-| Medio-Alto | 50 | ~200-300 | 5 min |
-| Alto | 100 | ~400-600 | 5 min |
-
-**Total por tratamiento:** 25 minutos de prueba  
-**Total del experimento:** 50 minutos (+ tiempos de setup)
-
----
-
-## 7. Procedimiento Experimental
-
-### 7.1 Preparación del Entorno
-```bash
-# 1. Validar pre-requisitos
-./scripts/validate_environment.sh
-
-# 2. Limpiar estado previo
-microk8s kubectl delete deployment,svc,configmap --all -n default
-
-# 3. Reiniciar métricas Prometheus
-microk8s kubectl delete pod -l app=prometheus -n observability
-```
-
-### 7.2 Secuencia de Ejecución
-
-#### Fase 1: Tratamiento HTTP (Día 1)
-```bash
-# Repetición 1
-./scripts/deploy_microk8s.sh --start --protocol http
-./scripts/run_experiments.sh --protocol http --repetition 1
-
-# Esperar 30 minutos (cooldown)
-
-# Repetición 2
-./scripts/deploy_microk8s.sh --start --protocol http
-./scripts/run_experiments.sh --protocol http --repetition 2
-
-# Esperar 30 minutos
-
-# Repetición 3
-./scripts/deploy_microk8s.sh --start --protocol http
-./scripts/run_experiments.sh --protocol http --repetition 3
-```
-
-#### Fase 2: Tratamiento HTTPS (Día 2)
-```bash
-# Repetición 1
-./scripts/deploy_microk8s.sh --start --protocol https
-./scripts/run_experiments.sh --protocol https --repetition 1
-
-# Esperar 30 minutos
-
-# Repetición 2
-./scripts/deploy_microk8s.sh --start --protocol https
-./scripts/run_experiments.sh --protocol https --repetition 2
-
-# Esperar 30 minutos
-
-# Repetición 3
-./scripts/deploy_microk8s.sh --start --protocol https
-./scripts/run_experiments.sh --protocol https --repetition 3
-```
-
-### 7.3 Recolección de Datos
-**Fuentes de datos:**
-
-1. **k6 (exportación JSON):**
-```bash
-k6 run --out json=results/http-vus10-rep1.json \
-  -e TARGET_URL=http://localhost:8081/process \
-  -e VUS=10 -e DURATION=5m \
-  Testing/baseline.js
-```
-
-2. **Prometheus (queries):**
-```promql
-# Latencia P95
-histogram_quantile(0.95, 
-  rate(http_request_duration_seconds_bucket[1m])
-)
-
-# CPU por pod
-rate(container_cpu_usage_seconds_total{pod=~"s0.*"}[1m]) * 100
-
-# Red enviada
-rate(container_network_transmit_bytes_total{pod=~"s0.*"}[1m])
-```
-
-3. **Exportación completa:**
-```bash
-# Snapshot de métricas Prometheus
-curl -G 'http://localhost:9090/api/v1/query' \
-  --data-urlencode 'query=http_request_duration_seconds' \
-  > prometheus_snapshot.json
-```
-
----
-
-## 8. Análisis de Datos
-
-### 8.1 Estadística Descriptiva
-Para cada métrica y tratamiento:
-- Media (μ) y desviación estándar (σ)
-- Mediana, P25, P75, P95, P99
-- Coeficiente de variación (CV)
-- Gráficos de distribución (histogramas, boxplots)
-
-### 8.2 Pruebas de Hipótesis
-
-#### Test 1: Comparación de Latencias (H1)
-**Prueba:** t-test pareado (paired samples t-test)
-```
-H0: μ_HTTP = μ_HTTPS
-H1: μ_HTTP < μ_HTTPS
-α = 0.05
-```
-
-**Criterio de rechazo:** p-value < 0.05 y Cohen's d > 0.5 (efecto mediano)
-
-#### Test 2: Comparación de Throughput
-**Prueba:** Mann-Whitney U test (no paramétrica)
-```
-H0: MedianThroughput_HTTP = MedianThroughput_HTTPS
-H1: MedianThroughput_HTTP > MedianThroughput_HTTPS
-α = 0.05
-```
-
-### 8.3 Cálculo de Overhead
-```python
-# Overhead porcentual de latencia
-overhead_latency = ((HTTPS_p95 - HTTP_p95) / HTTP_p95) * 100
-
-# Degradación de throughput
-degradation_throughput = ((HTTP_rps - HTTPS_rps) / HTTP_rps) * 100
-
-# Overhead de CPU
-overhead_cpu = ((HTTPS_cpu - HTTP_cpu) / HTTP_cpu) * 100
-```
-
-### 8.4 Análisis de Regresión
-**Modelo de regresión lineal:**
-```
-Latency ~ Protocol + VUs + Protocol:VUs
-```
-
-Evalúa:
-- Efecto principal del protocolo
-- Efecto de la carga (VUs)
-- Interacción (si TLS se degrada más bajo alta carga)
-
-### 8.5 Herramientas de Análisis
-```python
-# Script de análisis automático
-python3 Testing/analyze_k6_results.py \
-  --http results/http-*.json \
+El objetivo no es solo comparar HTTP vs HTTPS, sino medir rendimiento-seguridad en una arquitectura mas cercana a produccion.
+
+## 2. Preguntas de Investigacion
+
+### 2.1 Pregunta principal
+
+Cual es el impacto en latencia, tasa de error y capacidad de procesamiento al ejecutar cargas realistas y controles C1-C4 en un entorno Kubernetes local reproducible.
+
+### 2.2 Preguntas secundarias
+
+1. Que diferencia existe entre perfiles de carga quick, normal y stress sobre los micros realistas.
+2. Como varia el comportamiento al activar cada control C1-C4 frente al baseline.
+3. Si la degradacion observada se mantiene dentro de umbrales aceptables para operacion.
+4. Si la evidencia generada es suficientemente trazable para reporte academico.
+
+## 3. Alcance Experimental
+
+### 3.1 Sistema bajo prueba
+
+#### Capa base muBench
+
+- Flujo baseline e inter-service de muBench.
+- Dashboards y comparativas consolidadas.
+
+#### Capa realista
+
+- auth-service: login y emision de token.
+- api-service: profile, users (GET/POST).
+- data-service: logica y persistencia.
+- postgres: almacenamiento de usuarios.
+
+#### Observabilidad
+
+- Prometheus para series de tiempo.
+- Grafana para visualizacion y comparacion.
+- Dashboard Kubernetes para estado operacional.
+
+### 3.2 Controles evaluados
+
+- C1: API Gateway / Ingress.
+- C2: mTLS Service Mesh.
+- C3: Network Policies.
+- C4: Rate Limiting.
+
+## 4. Hipotesis
+
+### 4.1 Hipotesis principal
+
+H1: La activacion de controles C1-C4 incrementa la latencia p95 respecto al baseline, pero con mejora de postura defensiva medible y con error rate controlado.
+
+### 4.2 Hipotesis secundarias
+
+- H2: El perfil stress amplifica diferencias entre baseline y controles.
+- H3: C2 y C4 tienden a introducir mayor overhead relativo que C1 y C3 bajo la misma carga.
+- H4: El flujo hybrid-quick es suficiente para validacion funcional y deteccion temprana de regresiones.
+
+## 5. Variables del Estudio
+
+### 5.1 Variables independientes
+
+1. Perfil de carga:
+   - hybrid-quick
+   - hybrid
+   - hybrid-stress
+2. Control de seguridad activo:
+   - baseline
+   - c1-gateway
+   - c2-mtls
+   - c3-netpol
+   - c4-ratelimit
+
+### 5.2 Variables dependientes
+
+1. http_req_duration p95.
+2. http_req_failed rate.
+3. users_created_total.
+4. users_listed_total.
+5. Total requests y checks exitosos.
+
+### 5.3 Variables controladas
+
+1. Misma infraestructura local (MicroK8s y hardware).
+2. Misma version de scripts y manifiestos.
+3. Mismo namespace realista y flujo de despliegue.
+4. Misma ruta de ejecucion principal para evitar sesgo de operador.
+
+## 6. Diseno Experimental
+
+### 6.1 Tipo de diseno
+
+Diseno cuasi-experimental con medidas repetidas sobre el mismo entorno:
+
+1. Se fija el entorno.
+2. Se aplica tratamiento (perfil/control).
+3. Se registran metricas comparables.
+4. Se repite por escenario.
+
+### 6.2 Escenarios formales
+
+#### Escenario S0: Validacion operacional minima
+
+Comando:
+
+./scripts/deploy_microk8s.sh --start --hybrid-quick
+
+Finalidad:
+
+- Confirmar que stack base + realistic + k6 + dashboards estan operativos.
+
+#### Escenario S1: Carga hibrida normal
+
+Comando:
+
+./scripts/deploy_microk8s.sh --start --hybrid
+
+Finalidad:
+
+- Obtener metrica representativa de operacion normal.
+
+#### Escenario S2: Carga hibrida stress
+
+Comando:
+
+./scripts/deploy_microk8s.sh --start --hybrid-stress
+
+Finalidad:
+
+- Observar degradacion bajo carga elevada y limites de estabilidad.
+
+#### Escenario S3: Barrido de controles realistas
+
+Comando:
+
+./scripts/deploy_microk8s.sh --start --hybrid --hybrid-controls
+
+Finalidad:
+
+- Construir comparativo directo baseline vs C1 vs C2 vs C3 vs C4.
+
+## 7. Flujo Operacional de Cada Corrida
+
+1. Despliegue base muBench.
+2. Pruebas k6 baseline e inter-service.
+3. Despliegue de micros realistas.
+4. Ejecucion k6 create/list sobre micros realistas.
+5. Generacion de resumen automatico hybrid-k6-summary.
+6. Publicacion/actualizacion de dashboards.
+7. Generacion de consolidado C1-C4 y visualizaciones.
+
+## 8. Evidencia y Artefactos Esperados
+
+### 8.1 Evidencia de carga
+
+- Testing/results/http-baseline-*.json
+- Testing/results/http-interservice-*.json
+- RealisticServices/results/k6-users-bulk-*.json
+
+### 8.2 Evidencia resumida
+
+- RealisticServices/results/hybrid-k6-summary-*.txt
+
+Campos minimos del resumen:
+
+1. users_created_total
+2. users_listed_total
+3. http_req_duration_p95_ms
+4. http_req_failed_rate
+
+### 8.3 Evidencia comparativa
+
+- Testing/results/all-controls-comparison.csv
+- Testing/results/all-controls-comparison.md
+- Testing/results/all-controls-p95.png
+- Testing/results/all-controls-avg-vus.png
+
+## 9. Criterios de Exito Experimental
+
+Una corrida se considera valida cuando:
+
+1. El script principal termina sin error fatal.
+2. Los pods realistas quedan en estado 1/1 Running.
+3. Se generan archivos k6 esperados para base y realistic.
+4. Se genera resumen hibrido automatico.
+5. Se publica dashboard comparativo con panel de resumen hibrido.
+6. La tasa de error permanece dentro de umbral definido para el escenario.
+
+## 10. Analisis de Resultados
+
+### 10.1 Descriptivo
+
+Por cada escenario/control reportar:
+
+1. p95 de latencia.
+2. tasa de error.
+3. volumen de creacion/listado de usuarios.
+
+### 10.2 Comparativo
+
+Comparar baseline contra cada control:
+
+Overhead porcentual de latencia:
+
+overhead_latencia = ((p95_control - p95_baseline) / p95_baseline) * 100
+
+Degradacion de capacidad de creacion:
+
+degradacion_create = ((create_baseline - create_control) / create_baseline) * 100
+
+### 10.3 Decision
+
+Un control se considera costo-efectivo cuando:
+
+1. mejora postura de seguridad,
+2. mantiene error rate en nivel aceptable,
+3. su overhead es justificable para el riesgo mitigado.
+
+## 11. Amenazas a la Validez y Mitigaciones
+
+### 11.1 Validez interna
+
+- Colision de port-forward local.
+- Estado previo en base de datos.
+- Saturacion de recursos del host.
+
+Mitigaciones:
+
+1. limpieza de port-forwards antes de cada corrida,
+2. trazabilidad de timestamp y artefactos,
+3. ejecucion en ventana de baja interferencia.
+
+### 11.2 Validez externa
+
+- Entorno local puede diferir de produccion multi-nodo.
+
+Mitigaciones:
+
+1. reportar configuracion exacta,
+2. repetir perfiles en varios dias,
+3. usar tendencias y no una unica corrida como conclusion.
+
+## 12. Procedimiento de Reproducibilidad
+
+Ruta recomendada:
+
+1. Ejecutar protocolo de cero absoluto.
+2. Correr S0 para sanidad.
+3. Correr S1 y S2 para comportamiento de carga.
+4. Correr S3 para comparativo de controles.
+5. Consolidar evidencia en CSV/MD/PNG y dashboard.
+
+Documentos complementarios:
+
+1. RealisticServices/RUNBOOK_REPRODUCIBILIDAD.md
+2. RealisticServices/RUNBOOK_ACADEMICO_METODO_EXPERIMENTAL.md
+3. Docs/PROTOCOLO_CERO_ABSOLUTO.md
+
+## 13. Conclusion metodologica
+
+El diseno experimental actualizado evoluciona de una comparacion simplificada de protocolo a una evaluacion integral de rendimiento y seguridad en micros realistas, con automatizacion, evidencia trazable y criterios claros de aceptacion para analisis academico y operativo.
   --https results/https-*.json \
   --output analysis_report.pdf
 ```
