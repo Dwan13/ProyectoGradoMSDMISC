@@ -12,7 +12,7 @@
       "nginx-svc-type": "NodePort",
       "no-apply": false
    },
-   "InternalServiceFilePath": "CustomFunctions",
+   "InternalServiceFilePath": "../../CustomFunctions",
    "OutputPath": "SimulationWorkspace",
-   "WorkModelPath": "Examples/workmodel-serial-10services.json"
+   "WorkModelPath": "../../WorkModelGenerator/SimulationWorkspace/workmodel.json"
 }

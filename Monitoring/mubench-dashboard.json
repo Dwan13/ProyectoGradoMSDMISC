@@ -1,0 +1,109 @@
+{
+  "id": null,
+  "uid": "mubench-observability",
+  "title": "MuBench Observability Dashboard",
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "row",
+      "title": "🌐 Tráfico HTTP - Gateway",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Requests por segundo (gateway y servicios)",
+      "targets": [
+        {
+          "expr": "rate(container_network_receive_packets_total{pod=~\"gw-nginx|s0|s1|sdb1|api-demo\"}[1m])",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Uso de CPU (por pod)",
+      "targets": [
+        {
+          "expr": "rate(container_cpu_usage_seconds_total{pod=~\"gw-nginx|s0|s1|sdb1|api-demo\"}[1m])",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Uso de Memoria (por pod)",
+      "targets": [
+        {
+          "expr": "container_memory_usage_bytes{pod=~\"gw-nginx|s0|s1|sdb1|api-demo\"}",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Tráfico de red (bytes TX/RX)",
+      "targets": [
+        {
+          "expr": "rate(container_network_receive_bytes_total{pod=~\"gw-nginx|s0|s1|sdb1|api-demo\"}[1m])",
+          "legendFormat": "↓ {{pod}}",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(container_network_transmit_bytes_total{pod=~\"gw-nginx|s0|s1|sdb1|api-demo\"}[1m])",
+          "legendFormat": "↑ {{pod}}",
+          "refId": "B"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 }
+    },
+    {
+      "type": "stat",
+      "title": "Estado de Pods (Running / Pending / CrashLoop)",
+      "targets": [
+        {
+          "expr": "sum(kube_pod_status_phase{phase=\"Running\", namespace=\"default\"})",
+          "legendFormat": "Running",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(kube_pod_status_phase{phase!=\"Running\", namespace=\"default\"})",
+          "legendFormat": "No Running",
+          "refId": "B"
+        }
+      ],
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 17 }
+    },
+    {
+      "type": "stat",
+      "title": "Latencia Promedio (CPU segundos / pod)",
+      "targets": [
+        {
+          "expr": "avg(rate(container_cpu_usage_seconds_total{pod=~\"s0|s1|sdb1|api-demo\"}[1m]))",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 17 }
+    },
+    {
+      "type": "stat",
+      "title": "Tráfico total (bytes / pod)",
+      "targets": [
+        {
+          "expr": "sum(rate(container_network_receive_bytes_total{pod=~\"s0|s1|sdb1|gw-nginx\"}[5m]))",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 17 }
+    }
+  ]
+}

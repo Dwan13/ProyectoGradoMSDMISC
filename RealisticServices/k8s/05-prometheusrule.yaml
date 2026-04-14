@@ -1,0 +1,57 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: realistic-services-alerts
+  namespace: observability
+  labels:
+    release: kube-prom-stack
+spec:
+  groups:
+    - name: realistic-services.rules
+      rules:
+        - alert: RealisticHighErrorRate
+          expr: |
+            (
+              sum(rate(mubench_http_requests_total{service=~"auth-service|api-service|data-service",status=~"5.."}[5m]))
+              /
+              clamp_min(sum(rate(mubench_http_requests_total{service=~"auth-service|api-service|data-service"}[5m])), 0.001)
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            team: mubench
+          annotations:
+            summary: "High HTTP error rate in realistic services"
+            description: "Error rate is above 5% for 5m in auth/api/data services."
+
+        - alert: RealisticHighP95Latency
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le, service) (
+                rate(mubench_http_request_duration_seconds_bucket{service=~"auth-service|api-service|data-service"}[5m])
+              )
+            ) > 0.4
+          for: 5m
+          labels:
+            severity: warning
+            team: mubench
+          annotations:
+            summary: "High P95 HTTP latency in realistic services"
+            description: "P95 latency is above 400ms for 5m."
+
+        - alert: RealisticSlowDbQueryP95
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le, query_name) (
+                rate(mubench_db_query_duration_seconds_bucket[5m])
+              )
+            ) > 0.2
+          for: 5m
+          labels:
+            severity: warning
+            team: mubench
+          annotations:
+            summary: "Slow DB queries in data-service"
+            description: "P95 DB query latency is above 200ms for 5m."

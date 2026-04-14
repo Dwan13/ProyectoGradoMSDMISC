@@ -1,4 +1,104 @@
+# µBench - Plataforma de Benchmarking para Aplicaciones de Microservicios
+
+## Tecnologías y Stack Actual
+
+- **Kubernetes**: Orquestación de microservicios, despliegue automatizado y gestión de recursos.
+- **Docker**: Contenedores para µBench y herramientas auxiliares.
+- **Prometheus**: Monitorización de métricas de servicios y plataforma.
+- **Grafana**: Visualización de métricas y dashboards personalizables.
+- **Istio**: Service Mesh para observabilidad avanzada, control de tráfico y seguridad.
+- **Jaeger**: Trazabilidad distribuida de peticiones.
+- **Kiali**: Visualización y gestión de Istio.
+- **k6**: Generador de carga para pruebas de rendimiento.
+- **Helm**: Instalación y gestión de dependencias en Kubernetes.
+- **Python**: Scripts de automatización, generación de modelos de trabajo y despliegue.
+- **Herramientas adicionales**: ApacheBench, JMeter, vim, nano, iproute2, iputils-ping.
+
+## Avances y Mejoras Recientes
+
+- **Automatización completa** del ciclo de vida: generación de topologías, despliegue, monitoreo y benchmarking.
+- **Soporte para escenarios realistas** (carpeta RealisticServices) y simulados, permitiendo comparaciones directas.
+- **Framework de monitoreo integrado**: instalación automática de Prometheus, Grafana, Istio, Jaeger y Kiali con scripts.
+- **Exportación de métricas customizadas** desde los servicios (latencia, tamaño de respuesta, histogramas).
+- **Soporte para Service Mesh**: integración con Istio para control avanzado y trazabilidad.
+- **Contenedores Docker listos para producción y desarrollo**.
+- **Documentación ampliada**: manual de usuario, guías rápidas, y ejemplos reproducibles.
+- **Actualización de términos y archivos**: ServiceMesh → ServiceGraph, mean_bandwidth → mean_response_size.
+
+## Acceso a la Monitorización
+
+- **Prometheus**: http://<MASTER_IP>:30000
+- **Grafana**: http://<MASTER_IP>:30001 (usuario: admin, contraseña: prom-operator)
+- **Jaeger**: http://<MASTER_IP>:30002
+- **Kiali**: http://<MASTER_IP>:30003
+
 # **µBench** - A Factory of Benchmarking Microservices Applications
+...existing code...
+# Relación entre muBench y escenarios realistas
+
+muBench es la plataforma base que automatiza el despliegue, la configuración y la medición de microservicios de referencia (simulados) en Kubernetes, integrando observabilidad (Prometheus, Grafana) y pruebas de carga (k6). Los escenarios realistas (carpeta RealisticServices) implementan microservicios más cercanos a casos de uso reales, pero pueden ser orquestados y evaluados usando la infraestructura y scripts de muBench.
+
+Esto permite comparar controles de seguridad y rendimiento tanto en servicios simulados como en servicios realistas, aprovechando toda la automatización y monitoreo de muBench.
+
+@startuml
+Bob -> Alice : hello
+@enduml@startuml
+title Arquitectura Experimental basada en muBench
+
+package "muBench (Plataforma Base)" {
+  [Orquestación Kubernetes]
+  [Automatización de despliegue]
+  [Observabilidad (Prometheus, Grafana)]
+  [Pruebas de carga (k6)]
+}
+
+package "Servicios Simulados" {
+  [s0]
+  [s1]
+  [sdb1]
+}
+
+package "Servicios Realistas" {
+  [auth-service]
+  [api-service]
+  [data-service]
+}
+
+package "Controles Experimentales (C1-C4)" {
+  [API Gateway]
+  [Service Mesh]
+  [Network Policies]
+  [Rate Limiting]
+}
+
+package "Resultados" {
+  [Métricas de desempeño]
+  [Comparación y benchmark]
+}
+
+' Relación base
+[Orquestación Kubernetes] --> [s0]
+[Orquestación Kubernetes] --> [auth-service]
+
+[Automatización de despliegue] --> [Servicios Simulados]
+[Automatización de despliegue] --> [Servicios Realistas]
+
+[Observabilidad (Prometheus, Grafana)] --> [Métricas de desempeño]
+[Pruebas de carga (k6)] --> [Métricas de desempeño]
+
+' Aplicación de controles
+[Controles Experimentales (C1-C4)] --> [Servicios Simulados]
+[Controles Experimentales (C1-C4)] --> [Servicios Realistas]
+
+' Resultados
+[Métricas de desempeño] --> [Comparación y benchmark]
+
+@enduml
+
+**Resumen:**
+- muBench provee la base, automatización y entorno de pruebas.
+- Los escenarios realistas pueden funcionar sobre muBench, aprovechando su infraestructura para pruebas, monitoreo y benchmarking.
+- Así se logra comparar controles y rendimiento en condiciones tanto simuladas como realistas, con máxima reproducibilidad.
 
 ![service-cell-rest-grpc](Docs/microservices-rest-grpc.png)
 
@@ -110,3 +210,126 @@ To reproduce the tests of the paper, read [here](Docs/reproducibility.md).
 This software is supported by:
 - Liquid_Edge project, funded by the Italian Ministry of University and Research within the PRIN 2017 program.
 - Italian PNRR Restart Program
+
+@startuml
+package "Kubernetes Cluster" {
+
+  [API Gateway] --> [API Service]
+  
+  [Auth Service] --> [API Service]
+  [API Service] --> [Data Service]
+
+  [Service Mesh] ..> [Auth Service]
+  [Service Mesh] ..> [API Service]
+  [Service Mesh] ..> [Data Service]
+
+  [Network Policies] ..> [Auth Service]
+  [Network Policies] ..> [API Service]
+  [Network Policies] ..> [Data Service]
+
+  [Rate Limiting] ..> [API Service]
+}
+
+[Client / k6] --> [API Gateway]
+
+[Prometheus] --> [API Service]
+[Prometheus] --> [Auth Service]
+[Prometheus] --> [Data Service]
+
+[Grafana] --> [Prometheus]
+
+@enduml
+
+@startuml
+actor Client
+
+Client -> API_Gateway : HTTP Request
+
+API_Gateway -> Auth_Service : Validate Token
+Auth_Service --> API_Gateway : OK
+
+API_Gateway -> API_Service : Forward Request
+
+API_Service -> Data_Service : Query Data
+Data_Service --> API_Service : Response
+
+API_Service --> API_Gateway : Response
+API_Gateway --> Client : HTTP Response
+
+@enduml
+
+@startuml
+node "Kubernetes Cluster" {
+
+  node "Namespace: realistic" {
+
+    node "Pod: auth-service" {
+      component Auth
+    }
+
+    node "Pod: api-service" {
+      component API
+    }
+
+    node "Pod: data-service" {
+      component Data
+    }
+
+    node "Ingress Controller" {
+      component NGINX
+    }
+
+  }
+
+  node "Monitoring" {
+    component Prometheus
+    component Grafana
+  }
+}
+
+node "Load Generator" {
+  component k6
+}
+
+k6 --> NGINX
+NGINX --> API
+API --> Auth
+API --> Data
+
+Prometheus --> API
+Prometheus --> Auth
+Prometheus --> Data
+
+@enduml
+
+@startuml
+
+class User {
+  +id: String
+  +username: String
+  +email: String
+}
+
+class AuthService {
+  +login()
+  +validateToken()
+}
+
+class ApiService {
+  +createUser()
+  +listUsers()
+}
+
+class DataService {
+  +saveUser()
+  +getUsers()
+}
+
+AuthService --> User
+ApiService --> User
+DataService --> User
+
+ApiService --> DataService
+ApiService --> AuthService
+
+@enduml

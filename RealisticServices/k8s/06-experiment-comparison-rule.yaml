@@ -1,0 +1,779 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mubench-experiment-comparison
+  namespace: observability
+  labels:
+    release: kube-prom-stack
+spec:
+  groups:
+    - name: mubench-experiment-comparison.rules
+      rules:
+        - record: mubench_experiment_avg_ms
+          expr: "vector(25.309100)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(37.501500)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(78.352000)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "baseline"
+            vus: "25"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(109.030100)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "baseline"
+            vus: "25"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "baseline"
+            vus: "25"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "baseline"
+            vus: "25"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(281.016000)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "baseline"
+            vus: "50"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(333.416400)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "baseline"
+            vus: "50"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "baseline"
+            vus: "50"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "baseline"
+            vus: "50"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(26.477100)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "kong"
+            vus: "10"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(39.287500)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "kong"
+            vus: "10"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(4.614941)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "kong"
+            vus: "10"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(4.762476)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "kong"
+            vus: "10"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(82.254400)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "kong"
+            vus: "25"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(120.444700)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "kong"
+            vus: "25"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(4.980600)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "kong"
+            vus: "25"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(10.469219)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "kong"
+            vus: "25"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(90.953800)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "kong"
+            vus: "50"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(302.106300)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "kong"
+            vus: "50"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(-67.633943)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "kong"
+            vus: "50"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(-9.390690)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "kong"
+            vus: "50"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(25.909200)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "nginx"
+            vus: "10"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(38.106200)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "nginx"
+            vus: "10"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(2.371084)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "nginx"
+            vus: "10"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(1.612469)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "nginx"
+            vus: "10"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(17.245300)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "nginx"
+            vus: "25"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(76.453900)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "nginx"
+            vus: "25"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(-77.989968)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "nginx"
+            vus: "25"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(-29.878171)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "nginx"
+            vus: "25"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(17.968400)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "nginx"
+            vus: "50"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(81.269700)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "nginx"
+            vus: "50"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(-93.605916)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "nginx"
+            vus: "50"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(-75.625164)"
+          labels:
+            control: "C1-api-gateway"
+            technology: "nginx"
+            vus: "50"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(21.165900)"
+          labels:
+            control: "C2-mtls"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(34.409100)"
+          labels:
+            control: "C2-mtls"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2-mtls"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2-mtls"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(22.195867)"
+          labels:
+            control: "C2-mtls"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(35.522100)"
+          labels:
+            control: "C2-mtls"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2-mtls"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2-mtls"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(33.055200)"
+          labels:
+            control: "C2-mtls"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(77.251033)"
+          labels:
+            control: "C2-mtls"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2-mtls"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2-mtls"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(25.477633)"
+          labels:
+            control: "C2-mtls"
+            technology: "istio"
+            vus: "5"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(39.599033)"
+          labels:
+            control: "C2-mtls"
+            technology: "istio"
+            vus: "5"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(20.371132)"
+          labels:
+            control: "C2-mtls"
+            technology: "istio"
+            vus: "5"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(15.083026)"
+          labels:
+            control: "C2-mtls"
+            technology: "istio"
+            vus: "5"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(26.356300)"
+          labels:
+            control: "C2-mtls"
+            technology: "istio"
+            vus: "10"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(40.312767)"
+          labels:
+            control: "C2-mtls"
+            technology: "istio"
+            vus: "10"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(18.744181)"
+          labels:
+            control: "C2-mtls"
+            technology: "istio"
+            vus: "10"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(13.486440)"
+          labels:
+            control: "C2-mtls"
+            technology: "istio"
+            vus: "10"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(31.514500)"
+          labels:
+            control: "C2-mtls"
+            technology: "istio"
+            vus: "20"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(54.907500)"
+          labels:
+            control: "C2-mtls"
+            technology: "istio"
+            vus: "20"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(-4.660991)"
+          labels:
+            control: "C2-mtls"
+            technology: "istio"
+            vus: "20"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(-28.923281)"
+          labels:
+            control: "C2-mtls"
+            technology: "istio"
+            vus: "20"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(25.022967)"
+          labels:
+            control: "C2-mtls"
+            technology: "linkerd"
+            vus: "5"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(36.439567)"
+          labels:
+            control: "C2-mtls"
+            technology: "linkerd"
+            vus: "5"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(18.223022)"
+          labels:
+            control: "C2-mtls"
+            technology: "linkerd"
+            vus: "5"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(5.900958)"
+          labels:
+            control: "C2-mtls"
+            technology: "linkerd"
+            vus: "5"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(25.523600)"
+          labels:
+            control: "C2-mtls"
+            technology: "linkerd"
+            vus: "10"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(39.214833)"
+          labels:
+            control: "C2-mtls"
+            technology: "linkerd"
+            vus: "10"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(14.992581)"
+          labels:
+            control: "C2-mtls"
+            technology: "linkerd"
+            vus: "10"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(10.395594)"
+          labels:
+            control: "C2-mtls"
+            technology: "linkerd"
+            vus: "10"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(29.928333)"
+          labels:
+            control: "C2-mtls"
+            technology: "linkerd"
+            vus: "20"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(52.101733)"
+          labels:
+            control: "C2-mtls"
+            technology: "linkerd"
+            vus: "20"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(-9.459530)"
+          labels:
+            control: "C2-mtls"
+            technology: "linkerd"
+            vus: "20"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(-32.555293)"
+          labels:
+            control: "C2-mtls"
+            technology: "linkerd"
+            vus: "20"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(6.021800)"
+          labels:
+            control: "C2-mtls"
+            technology: "mesh-realistic"
+            vus: "25"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(17.408800)"
+          labels:
+            control: "C2-mtls"
+            technology: "mesh-realistic"
+            vus: "25"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(28.470967)"
+          labels:
+            control: "C3-netpol"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(48.539267)"
+          labels:
+            control: "C3-netpol"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3-netpol"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3-netpol"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(26.684233)"
+          labels:
+            control: "C3-netpol"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(41.769400)"
+          labels:
+            control: "C3-netpol"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3-netpol"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3-netpol"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(30.523533)"
+          labels:
+            control: "C3-netpol"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(51.943400)"
+          labels:
+            control: "C3-netpol"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3-netpol"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3-netpol"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(15.403600)"
+          labels:
+            control: "C3-netpol"
+            technology: "netpol-realistic"
+            vus: "25"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(39.720050)"
+          labels:
+            control: "C3-netpol"
+            technology: "netpol-realistic"
+            vus: "25"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(24.856667)"
+          labels:
+            control: "C3-netpol"
+            technology: "policies"
+            vus: "5"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(35.775100)"
+          labels:
+            control: "C3-netpol"
+            technology: "policies"
+            vus: "5"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(-12.694687)"
+          labels:
+            control: "C3-netpol"
+            technology: "policies"
+            vus: "5"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(-26.296579)"
+          labels:
+            control: "C3-netpol"
+            technology: "policies"
+            vus: "5"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(26.313833)"
+          labels:
+            control: "C3-netpol"
+            technology: "policies"
+            vus: "10"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(40.122100)"
+          labels:
+            control: "C3-netpol"
+            technology: "policies"
+            vus: "10"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(-1.388086)"
+          labels:
+            control: "C3-netpol"
+            technology: "policies"
+            vus: "10"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(-3.943796)"
+          labels:
+            control: "C3-netpol"
+            technology: "policies"
+            vus: "10"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(29.385300)"
+          labels:
+            control: "C3-netpol"
+            technology: "policies"
+            vus: "20"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(48.811200)"
+          labels:
+            control: "C3-netpol"
+            technology: "policies"
+            vus: "20"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(-3.729035)"
+          labels:
+            control: "C3-netpol"
+            technology: "policies"
+            vus: "20"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(-6.030025)"
+          labels:
+            control: "C3-netpol"
+            technology: "policies"
+            vus: "20"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(30.895800)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(53.592900)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(105.164267)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "baseline"
+            vus: "25"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(163.671667)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "baseline"
+            vus: "25"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "baseline"
+            vus: "25"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "baseline"
+            vus: "25"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(305.636800)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "baseline"
+            vus: "50"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(414.478667)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "baseline"
+            vus: "50"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "baseline"
+            vus: "50"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "baseline"
+            vus: "50"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(1.179200)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit"
+            vus: "10"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(3.433467)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit"
+            vus: "10"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(-96.183300)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit"
+            vus: "10"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(-93.593430)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit"
+            vus: "10"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(1.303100)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit"
+            vus: "25"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(3.637000)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit"
+            vus: "25"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(-98.760891)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit"
+            vus: "25"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(-97.777868)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit"
+            vus: "25"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(1.719867)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit"
+            vus: "50"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(3.961100)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit"
+            vus: "50"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(-99.437284)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit"
+            vus: "50"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(-99.044318)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit"
+            vus: "50"
+        - record: mubench_experiment_avg_ms
+          expr: "vector(6.848650)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit-realistic"
+            vus: "25"
+        - record: mubench_experiment_p95_ms
+          expr: "vector(20.577050)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit-realistic"
+            vus: "25"
+        - record: mubench_experiment_overhead_avg_pct
+          expr: "vector(-93.487664)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit-realistic"
+            vus: "25"
+        - record: mubench_experiment_overhead_p95_pct
+          expr: "vector(-87.427848)"
+          labels:
+            control: "C4-ratelimit"
+            technology: "ratelimit-realistic"
+            vus: "25"
