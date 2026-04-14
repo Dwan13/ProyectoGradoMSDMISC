@@ -27,13 +27,14 @@ function login() {
   const payload = JSON.stringify({ username: 'demo', password: 'demo123' });
   const params = { headers: { 'Content-Type': 'application/json' } };
   const res = http.post(`${AUTH_BASE}/login`, payload, params);
+  const hasToken = res && res.status === 200 && res.body && !!res.json('access_token');
 
   check(res, {
     'login status 200': (r) => r.status === 200,
-    'login has token': (r) => !!r.json('access_token'),
+    'login has token': () => hasToken,
   });
 
-  return res.status === 200 ? res.json('access_token') : null;
+  return hasToken ? res.json('access_token') : null;
 }
 
 export default function () {
@@ -47,9 +48,11 @@ export default function () {
     headers: { Authorization: `Bearer ${token}` },
   });
 
+  const hasProfileUser = profileRes && profileRes.status === 200 && profileRes.body && !!profileRes.json('user.username');
+
   check(profileRes, {
     'profile status 200': (r) => r.status === 200,
-    'profile has user': (r) => !!r.json('user.username'),
+    'profile has user': () => hasProfileUser,
   });
 
   sleep(0.5);

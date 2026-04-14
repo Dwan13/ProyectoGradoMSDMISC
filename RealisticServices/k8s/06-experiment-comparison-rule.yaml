@@ -82,18 +82,6 @@ spec:
             technology: "baseline"
             vus: "50"
         - record: mubench_experiment_avg_ms
-          expr: "vector(0.000000)"
-          labels:
-            control: "C1-api-gateway"
-            technology: "gateway-realistic"
-            vus: "24"
-        - record: mubench_experiment_p95_ms
-          expr: "vector(0.000000)"
-          labels:
-            control: "C1-api-gateway"
-            technology: "gateway-realistic"
-            vus: "24"
-        - record: mubench_experiment_avg_ms
           expr: "vector(26.477100)"
           labels:
             control: "C1-api-gateway"
@@ -454,13 +442,13 @@ spec:
             technology: "linkerd"
             vus: "20"
         - record: mubench_experiment_avg_ms
-          expr: "vector(10.603900)"
+          expr: "vector(6.021800)"
           labels:
             control: "C2-mtls"
             technology: "mesh-realistic"
             vus: "25"
         - record: mubench_experiment_p95_ms
-          expr: "vector(0.000000)"
+          expr: "vector(17.408800)"
           labels:
             control: "C2-mtls"
             technology: "mesh-realistic"
@@ -538,13 +526,13 @@ spec:
             technology: "baseline"
             vus: "20"
         - record: mubench_experiment_avg_ms
-          expr: "vector(15.176800)"
+          expr: "vector(15.403600)"
           labels:
             control: "C3-netpol"
             technology: "netpol-realistic"
             vus: "25"
         - record: mubench_experiment_p95_ms
-          expr: "vector(38.043600)"
+          expr: "vector(39.720050)"
           labels:
             control: "C3-netpol"
             technology: "netpol-realistic"
@@ -766,25 +754,25 @@ spec:
             technology: "ratelimit"
             vus: "50"
         - record: mubench_experiment_avg_ms
-          expr: "vector(7.287200)"
+          expr: "vector(6.848650)"
           labels:
             control: "C4-ratelimit"
             technology: "ratelimit-realistic"
             vus: "25"
         - record: mubench_experiment_p95_ms
-          expr: "vector(21.297200)"
+          expr: "vector(20.577050)"
           labels:
             control: "C4-ratelimit"
             technology: "ratelimit-realistic"
             vus: "25"
         - record: mubench_experiment_overhead_avg_pct
-          expr: "vector(-93.070650)"
+          expr: "vector(-93.487664)"
           labels:
             control: "C4-ratelimit"
             technology: "ratelimit-realistic"
             vus: "25"
         - record: mubench_experiment_overhead_p95_pct
-          expr: "vector(-86.987852)"
+          expr: "vector(-87.427848)"
           labels:
             control: "C4-ratelimit"
             technology: "ratelimit-realistic"

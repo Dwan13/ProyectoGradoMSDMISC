@@ -33,6 +33,9 @@ RUN_HYBRID_MODE="${RUN_HYBRID_MODE:-0}"
 RUN_REALISTIC_CONTROLS="${RUN_REALISTIC_CONTROLS:-0}"
 RUN_HYBRID_STRESS_MODE="${RUN_HYBRID_STRESS_MODE:-0}"
 RUN_HYBRID_QUICK_MODE="${RUN_HYBRID_QUICK_MODE:-0}"
+RUN_RESOURCE_EXPORT="${RUN_RESOURCE_EXPORT:-0}"
+RUN_FAULT_SUITE="${RUN_FAULT_SUITE:-0}"
+VALIDATE_RESULTS="${VALIDATE_RESULTS:-1}"
 
 PROM_LOG="/tmp/prometheus_portforward.log"
 GRAFANA_LOG="/tmp/grafana_portforward.log"
@@ -290,35 +293,64 @@ check_k6() {
 run_k6_tests() {
   check_k6 || { warn "Se omiten pruebas k6 por falta de binario k6"; return 0; }
 
+  wait_http() {
+    local url="$1"
+    local max_wait="${2:-60}"
+    local i
+    for ((i = 1; i <= max_wait; i++)); do
+      if curl -fsS --max-time 2 "$url" >/dev/null 2>&1; then
+        return 0
+      fi
+      sleep 1
+    done
+    return 1
+  }
+
   mkdir -p "${RESULTS_DIR}"
   TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-  K6_VUS="${VUS:-20}"
-  K6_DURATION="${DURATION:-60s}"
+  K6_VUS="${K6_BASELINE_VUS:-${VUS:-2}}"
+  K6_DURATION="${K6_BASELINE_DURATION:-${DURATION:-10s}}"
   
   # Usar port-forward para acceder a los servicios
   LOCAL_PORT=8081
   PF_PID=""
+  TARGET_URL=""
+  BASE_URL=""
 
   log "🔌 Iniciando port-forward a servicio s0..."
   for attempt in 1 2 3; do
+    pkill -f "port-forward svc/s0 ${LOCAL_PORT}:80 -n ${NAMESPACE}" >/dev/null 2>&1 || true
     microk8s kubectl port-forward svc/s0 ${LOCAL_PORT}:80 -n ${NAMESPACE} > /tmp/k6_portforward.log 2>&1 &
     PF_PID=$!
     sleep 3
-    if ps -p $PF_PID > /dev/null 2>&1; then
+    if ps -p $PF_PID > /dev/null 2>&1 && wait_http "http://127.0.0.1:${LOCAL_PORT}/health" 30; then
+      TARGET_URL="http://127.0.0.1:${LOCAL_PORT}/process"
+      BASE_URL="http://127.0.0.1:${LOCAL_PORT}"
       break
     fi
     warn "Port-forward intento ${attempt} falló, reintentando..."
+    kill "$PF_PID" >/dev/null 2>&1 || true
+    wait "$PF_PID" >/dev/null 2>&1 || true
   done
 
-  if [[ -z "${PF_PID}" ]] || ! ps -p $PF_PID > /dev/null 2>&1; then
-    warn "No se pudo establecer port-forward a s0. Se omiten pruebas k6 en esta ejecución."
+  if [[ -z "${TARGET_URL}" ]]; then
+    warn "No se pudo establecer port-forward estable a s0. Intentando fallback por NodePort..."
+    NODE_PORT=$(microk8s kubectl get svc s0 -n "${NAMESPACE}" -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || true)
+    if [[ -n "${NODE_PORT}" ]] && wait_http "http://127.0.0.1:${NODE_PORT}/health" 30; then
+      TARGET_URL="http://127.0.0.1:${NODE_PORT}/process"
+      BASE_URL="http://127.0.0.1:${NODE_PORT}"
+      success "Fallback NodePort activo en ${NODE_PORT}"
+    fi
+  fi
+
+  if [[ -z "${TARGET_URL}" ]]; then
+    warn "No se logró endpoint estable de s0 (port-forward ni NodePort). Se omiten pruebas k6 en esta ejecución."
     return 0
   fi
 
-  TARGET_URL="http://127.0.0.1:${LOCAL_PORT}/process"
-
   log "🏁 Ejecutando k6 contra ${TARGET_URL}"
   log "Protocolo de comunicación inter-servicio: ${COMM_PROTOCOL}"
+  log "Perfil base k6: VUS=${K6_VUS}, DURATION=${K6_DURATION}"
 
   # Test baseline
   RESULT_FILE="${RESULTS_DIR}/${COMM_PROTOCOL}-baseline-${TIMESTAMP}.json"
@@ -337,9 +369,6 @@ run_k6_tests() {
   RESULT_FILE_INTER="${RESULTS_DIR}/${COMM_PROTOCOL}-interservice-${TIMESTAMP}.json"
   
   log "🔗 Ejecutando prueba de comunicación inter-servicio..."
-  
-  # Para inter-service test, usar base URL sin endpoint
-  BASE_URL="http://127.0.0.1:${LOCAL_PORT}"
   
   k6 run --out json="${RESULT_FILE_INTER}" \
     -e TARGET_URL="${BASE_URL}" \
@@ -522,9 +551,12 @@ def percentile(values, p):
     return d0 + d1
 
 def append_row(control, scenario, vus, p95, avg):
-    if p95 is None or avg is None:
-        return
-    rows.append({
+  if p95 is None or avg is None:
+    return
+  # Descarta corridas invalidas o incompletas (artefactos 0.0)
+  if p95 <= 0 or avg <= 0:
+    return
+  rows.append({
         "control": control,
         "scenario": scenario,
         "vus": vus,
@@ -1023,6 +1055,61 @@ PY
   success "Flujo híbrido finalizado correctamente"
 }
 
+run_resource_export() {
+  if [[ "${RUN_RESOURCE_EXPORT}" != "1" ]]; then
+    return 0
+  fi
+  if [[ ! -x "${PROJECT_DIR}/scripts/export_resource_metrics.sh" ]]; then
+    warn "No existe export_resource_metrics.sh ejecutable; se omite exportación CPU/memoria"
+    return 0
+  fi
+
+  log "📦 Exportando métricas de CPU/memoria desde Prometheus..."
+  if ! "${PROJECT_DIR}/scripts/export_resource_metrics.sh" \
+      --namespace realistic \
+      --window 15m \
+      --output-dir "${RESULTS_DIR}"; then
+    warn "Falló exportación de métricas de recursos"
+  fi
+}
+
+run_fault_tolerance_suite() {
+  if [[ "${RUN_FAULT_SUITE}" != "1" ]]; then
+    return 0
+  fi
+  if [[ ! -x "${PROJECT_DIR}/scripts/run_fault_tolerance_realistic.sh" ]]; then
+    warn "No existe run_fault_tolerance_realistic.sh ejecutable; se omite suite de fallos"
+    return 0
+  fi
+
+  log "🧪 Ejecutando suite de tolerancia a fallos (realistic)..."
+  if ! "${PROJECT_DIR}/scripts/run_fault_tolerance_realistic.sh" \
+      --namespace realistic \
+      --output-dir "${REALISTIC_DIR}/results"; then
+    warn "Suite de tolerancia a fallos terminó con advertencias"
+  fi
+}
+
+validate_consolidated_results() {
+  if [[ "${VALIDATE_RESULTS}" != "1" ]]; then
+    return 0
+  fi
+  if [[ ! -x "${PROJECT_DIR}/scripts/validate_controls_results.sh" ]]; then
+    warn "No existe validate_controls_results.sh ejecutable; se omite validación de consolidado"
+    return 0
+  fi
+  if [[ ! -f "${ALL_CONTROLS_CSV}" ]]; then
+    return 0
+  fi
+
+  log "🧹 Validando consolidado C1-C4 (filtrado de corridas inválidas)..."
+  "${PROJECT_DIR}/scripts/validate_controls_results.sh" \
+    --input "${ALL_CONTROLS_CSV}" \
+    --output "${RESULTS_DIR}/all-controls-comparison-clean.csv" \
+    --report "${RESULTS_DIR}/all-controls-validation-report.md" \
+    --inplace || warn "Validación del consolidado devolvió advertencias"
+}
+
 # ================================================================
 # 🚀 Inicio de servicios
 # ================================================================
@@ -1053,7 +1140,10 @@ start_services() {
   run_k6_tests
   create_grafana_dashboard
   run_realistic_hybrid_flow
+  run_resource_export
+  run_fault_tolerance_suite
   generate_all_controls_comparison
+  validate_consolidated_results
   generate_all_controls_visuals
   create_grafana_comparison_dashboard
 
@@ -1139,6 +1229,9 @@ ${GREEN}Options:${RESET}
   --hybrid-quick        Ejecutar flujo híbrido rápido (sanity check)
   --hybrid-stress       Ejecutar flujo híbrido con perfil de carga alta predefinido
   --hybrid-controls     En modo híbrido, también ejecutar benchmark C1-C4 realista
+  --export-resources    Exportar CSV de CPU/memoria desde Prometheus
+  --fault-suite         Ejecutar suite de tolerancia a fallos (realistic)
+  --no-validate-results No filtrar corridas inválidas en consolidado C1-C4
   --help                Mostrar esta ayuda
 
 ${GREEN}Examples:${RESET}
@@ -1157,6 +1250,9 @@ ${GREEN}Examples:${RESET}
   # Esquema híbrido + benchmark C1-C4 realista
   $0 --start --hybrid --hybrid-controls
 
+  # Flujo híbrido + exportación CPU/memoria + tolerancia a fallos
+  $0 --start --hybrid --hybrid-controls --export-resources --fault-suite
+
   # Desplegar con HTTPS
   COMM_PROTOCOL=https $0 --start
 
@@ -1167,10 +1263,15 @@ ${GREEN}Environment Variables:${RESET}
   COMM_PROTOCOL         http | https (default: http)
   VUS                   Virtual users para k6 (default: 20)
   DURATION              Duración de tests k6 (default: 60s)
+  K6_BASELINE_VUS       Virtual users etapa base (default: 2)
+  K6_BASELINE_DURATION  Duración etapa base (default: 10s)
   RUN_HYBRID_MODE       0 | 1 (default: 0)
   RUN_HYBRID_QUICK_MODE 0 | 1 (default: 0)
   RUN_HYBRID_STRESS_MODE 0 | 1 (default: 0)
   RUN_REALISTIC_CONTROLS 0 | 1 (default: 0)
+  RUN_RESOURCE_EXPORT   0 | 1 (default: 0)
+  RUN_FAULT_SUITE       0 | 1 (default: 0)
+  VALIDATE_RESULTS      0 | 1 (default: 1)
 
 ${GREEN}More Info:${RESET}
   Experiments: ${PROJECT_DIR}/experiments/
@@ -1212,6 +1313,19 @@ while [[ $# -gt 0 ]]; do
     --hybrid-controls)
       RUN_REALISTIC_CONTROLS="1"
       RUN_HYBRID_MODE="1"
+      shift
+      ;;
+    --export-resources)
+      RUN_RESOURCE_EXPORT="1"
+      shift
+      ;;
+    --fault-suite)
+      RUN_FAULT_SUITE="1"
+      RUN_HYBRID_MODE="1"
+      shift
+      ;;
+    --no-validate-results)
+      VALIDATE_RESULTS="0"
       shift
       ;;
     --help)
