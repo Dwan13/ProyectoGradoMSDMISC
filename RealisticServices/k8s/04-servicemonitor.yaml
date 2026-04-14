@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: realistic-services
+  namespace: observability
+  labels:
+    release: kube-prom-stack
+spec:
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: ["auth-service", "api-service", "data-service"]
+  namespaceSelector:
+    matchNames:
+      - realistic
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 10s

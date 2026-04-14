@@ -34,6 +34,8 @@ spec:
           ports:
             - name: http-mubpodport
               containerPort: 8080
+            - name: https-mubpodport
+              containerPort: 8443
           volumeMounts:
             - name: podinfo
               mountPath: /etc/podinfo
@@ -41,6 +43,7 @@ spec:
               mountPath: /app/MSConfig
             - name: microservice-internal-services
               mountPath: /app/MSConfig/InternalServiceFunctions
+            {{TLS_VOLUME_MOUNT}}
           env:
             - name: APP
               value: {{SERVICE_NAME}}
@@ -56,6 +59,28 @@ spec:
               value: {{PN}}
             - name: TN
               value: {{TN}}
+            - name: COMM_PROTOCOL
+              value: {{COMM_PROTOCOL}}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources: {{RESOURCES}}    
         
         {{SIDECAR}}
@@ -78,3 +103,4 @@ spec:
         - name: microservice-internal-services
           configMap:
             name: internal-services
+        {{TLS_VOLUME}}

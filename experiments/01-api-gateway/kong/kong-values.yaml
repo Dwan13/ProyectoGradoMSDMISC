@@ -1,0 +1,85 @@
+# Kong Helm Values
+# Configuración optimizada para experimentos de rendimiento
+
+# Configuración de réplicas
+replicaCount: 2
+
+# Imagen de Kong
+image:
+  repository: kong
+  tag: "3.4"
+  pullPolicy: IfNotPresent
+
+# Habilitar PostgreSQL como backend  
+postgresql:
+  enabled: true
+  image:
+    repository: docker.io/bitnami/postgresql
+    tag: "15.4.0"
+  auth:
+    username: kong
+    password: kong
+    database: kong
+
+# Configuración de recursos
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# Exponer via NodePort para fácil acceso
+proxy:
+  enabled: true
+  type: NodePort
+  http:
+    enabled: true
+    servicePort: 80
+    containerPort: 8000
+    nodePort: 30082
+  tls:
+    enabled: false
+
+# Admin API (para configuración)
+admin:
+  enabled: true
+  type: NodePort
+  http:
+    enabled: true
+    servicePort: 8001
+    containerPort: 8001
+    nodePort: 30081
+
+# Variables de entorno de Kong
+env:
+  # Logging
+  log_level: notice
+  
+  # Optimizaciones de performance
+  nginx_worker_processes: "2"
+  ulimit: "8192"
+  
+  # Database
+  database: postgres
+  pg_host: kong-postgresql
+  pg_port: "5432"
+  pg_database: kong
+  pg_user: kong
+  pg_password: kong
+
+# Service Monitor para Prometheus
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  namespace: kong
+  labels:
+    release: kube-prom-stack
+
+# Plugins habilitados
+plugins: {}
+
+# Autoscaling deshabilitado (experimentos controlados)
+autoscaling:
+  enabled: false
