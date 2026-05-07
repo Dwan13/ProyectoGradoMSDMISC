@@ -17,9 +17,9 @@ WARNINGS=0
 ERRORS=0
 
 log() { echo -e "${CYAN}[CHECK]${RESET} $*"; }
-success() { echo -e "${GREEN}✅ $*${RESET}"; ((SUCCESS++)); }
-warn() { echo -e "${YELLOW}⚠️ $*${RESET}"; ((WARNINGS++)); }
-error() { echo -e "${RED}❌ $*${RESET}"; ((ERRORS++)); }
+success() { echo -e "${GREEN}✅ $*${RESET}"; SUCCESS=$((SUCCESS+1)); }
+warn() { echo -e "${YELLOW}⚠️ $*${RESET}"; WARNINGS=$((WARNINGS+1)); }
+error() { echo -e "${RED}❌ $*${RESET}"; ERRORS=$((ERRORS+1)); }
 
 echo "================================================================"
 echo " MuBench Environment Validation"
@@ -80,21 +80,30 @@ else
     warn "Grafana no encontrado"
 fi
 
-# Check muBench pods
-log "Verificando pods de muBench..."
-POD_COUNT=$(microk8s kubectl get pods -n default 2>/dev/null | grep -cE "s0|s1|sdb|gw-nginx" || echo "0")
+# Check mubench-realistic pods
+log "Verificando pods de mubench-realistic..."
+POD_COUNT=$(microk8s kubectl get pods -n mubench-realistic 2>/dev/null | grep -c "Running" || echo "0")
 if [[ "$POD_COUNT" -gt 0 ]]; then
-    success "muBench pods encontrados: $POD_COUNT"
+    success "mubench-realistic pods Running: $POD_COUNT"
 else
-    warn "No se encontraron pods de muBench. Ejecutar: ./scripts/deploy_microk8s.sh --start"
+    warn "No se encontraron pods en mubench-realistic. Ejecutar: ./scripts/deploy-mubench-complete.sh"
+fi
+
+# Check realistic pods
+log "Verificando pods de realistic..."
+REAL_COUNT=$(microk8s kubectl get pods -n realistic 2>/dev/null | grep -c "Running" || echo "0")
+if [[ "$REAL_COUNT" -ge 4 ]]; then
+    success "realistic pods Running: $REAL_COUNT"
+else
+    warn "Pods realistic incompletos ($REAL_COUNT/4). Ejecutar: ./scripts/deploy-mubench-complete.sh"
 fi
 
 # Check scripts
 log "Verificando scripts..."
-if [[ -x "./scripts/deploy_microk8s.sh" ]]; then
-    success "deploy_microk8s.sh es ejecutable"
+if [[ -x "./scripts/deploy-mubench-complete.sh" ]]; then
+    success "deploy-mubench-complete.sh es ejecutable"
 else
-    error "deploy_microk8s.sh no es ejecutable o no existe"
+    error "deploy-mubench-complete.sh no es ejecutable o no existe"
 fi
 
 if [[ -x "./scripts/install_k6.sh" ]]; then
@@ -104,32 +113,22 @@ else
 fi
 
 # Check k6 test files
-log "Verificando scripts de k6..."
-if [[ -f "./Testing/baseline.js" ]]; then
-    success "baseline.js existe"
+log "Verificando scripts de k6 (experimentos realistic)..."
+if [[ -f "./RealisticServices/k6/realistic-flow.js" ]]; then
+    success "realistic-flow.js existe"
 else
-    error "baseline.js no encontrado"
+    warn "realistic-flow.js no encontrado en RealisticServices/k6/"
 fi
 
-if [[ -f "./Testing/inter-service-test.js" ]]; then
-    success "inter-service-test.js existe"
-else
-    error "inter-service-test.js no encontrado"
-fi
-
-# Check experiment docs
-log "Verificando documentación de experimentos..."
-if [[ -f "./experiments/scenario-http.md" ]]; then
-    success "scenario-http.md existe"
-else
-    error "scenario-http.md no encontrado"
-fi
-
-if [[ -f "./experiments/scenario-https.md" ]]; then
-    success "scenario-https.md existe"
-else
-    error "scenario-https.md no encontrado"
-fi
+# Check experimentos
+log "Verificando directorios de experimentos..."
+for exp in 01-api-gateway-realistic 02-mtls-service-mesh-realistic 03-network-policies-realistic 04-rate-limiting-realistic; do
+    if [[ -d "./experiments/${exp}" ]]; then
+        success "experiments/${exp} existe"
+    else
+        warn "experiments/${exp} no encontrado"
+    fi
+done
 
 # Check ServiceCell
 log "Verificando ServiceCell mejorado..."
@@ -165,9 +164,10 @@ if [[ $ERRORS -eq 0 ]]; then
     echo -e "${GREEN}✅ Sistema listo para usar muBench${RESET}"
     echo ""
     echo "Próximos pasos:"
-    echo "  1. Desplegar: ./scripts/deploy_microk8s.sh --start --protocol http"
-    echo "  2. Ver guías: cat experiments/README.md"
-    echo "  3. Acceder Grafana: http://localhost:3000"
+    echo "  1. Desplegar (si no está): ./scripts/deploy-mubench-complete.sh"
+    echo "  2. Ver credenciales: cat ~/.mubench_access"
+    echo "  3. Acceder Grafana: http://localhost:30001/login"
+    echo "  4. Ejecutar experimento: cd experiments/01-api-gateway-realistic && bash run-exp01-realistic.sh"
     exit 0
 else
     echo -e "${RED}❌ Se encontraron errores. Revisar y corregir.${RESET}"

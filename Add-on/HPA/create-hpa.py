@@ -1,3 +1,4 @@
+import re
 import yaml
 import os
 import argparse
@@ -7,7 +8,11 @@ def create_hpa(yaml_file_in, yaml_file_out, hpa_template_file):
     with open(hpa_template_file, 'r') as template_file:
         hpa_template = yaml.safe_load(template_file)
     with open(yaml_file_in, 'r') as file:
-        complete_yaml = list(yaml.safe_load_all(file))
+        raw = file.read()
+    # Remove unresolved {{PLACEHOLDER}} lines before parsing (muBench template artifacts)
+    raw = re.sub(r'^\s*\{\{[^}]+\}\}\s*\n', '', raw, flags=re.MULTILINE)
+    raw = re.sub(r'\{\{[^}]+\}\}', '', raw)
+    complete_yaml = list(yaml.safe_load_all(raw))
     for partial_yaml in complete_yaml:
         if partial_yaml["kind"] == "Deployment":
             if 'metadata' not in partial_yaml or 'name' not in partial_yaml['metadata']:

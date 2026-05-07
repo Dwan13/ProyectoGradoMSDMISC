@@ -1,5 +1,6 @@
 import yaml
 import os
+import re
 import argparse
 
 def add_affinity_spec(yaml_file_in, yaml_file_out, region, zone, subzone ):
@@ -44,7 +45,10 @@ def add_affinity_spec(yaml_file_in, yaml_file_out, region, zone, subzone ):
 
     created=False
     with open(yaml_file_in, 'r') as file:
-        complete_yaml = list(yaml.safe_load_all(file))
+        raw = file.read()
+    raw = re.sub(r'^\s*\{\{[^}]+\}\}\s*\n', '', raw, flags=re.MULTILINE)
+    raw = re.sub(r'\{\{[^}]+\}\}', '', raw)
+    complete_yaml = list(yaml.safe_load_all(raw))
     for partial_yaml in complete_yaml:
         if partial_yaml["kind"] == "Deployment":
             if 'spec' not in partial_yaml or 'template' not in partial_yaml['spec'] or 'spec' not in partial_yaml['spec']['template']:

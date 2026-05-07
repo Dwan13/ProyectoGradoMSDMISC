@@ -212,124 +212,96 @@ This software is supported by:
 - Italian PNRR Restart Program
 
 @startuml
-package "Kubernetes Cluster" {
+title Integración de muBench con Servicios Realistas, Simulados y Controles Experimentales
 
-  [API Gateway] --> [API Service]
-  
-  [Auth Service] --> [API Service]
-  [API Service] --> [Data Service]
+actor "Usuario / k6" as User
 
-  [Service Mesh] ..> [Auth Service]
-  [Service Mesh] ..> [API Service]
-  [Service Mesh] ..> [Data Service]
-
-  [Network Policies] ..> [Auth Service]
-  [Network Policies] ..> [API Service]
-  [Network Policies] ..> [Data Service]
-
-  [Rate Limiting] ..> [API Service]
+package "muBench (Plataforma Base)" {
+  [Orquestación Kubernetes]
+  [Automatización de despliegue]
+  [Observabilidad (Prometheus, Grafana, Jaeger, Kiali)]
+  [Pruebas de carga (k6)]
 }
 
-[Client / k6] --> [API Gateway]
-
-[Prometheus] --> [API Service]
-[Prometheus] --> [Auth Service]
-[Prometheus] --> [Data Service]
-
-[Grafana] --> [Prometheus]
-
-@enduml
-
-@startuml
-actor Client
-
-Client -> API_Gateway : HTTP Request
-
-API_Gateway -> Auth_Service : Validate Token
-Auth_Service --> API_Gateway : OK
-
-API_Gateway -> API_Service : Forward Request
-
-API_Service -> Data_Service : Query Data
-Data_Service --> API_Service : Response
-
-API_Service --> API_Gateway : Response
-API_Gateway --> Client : HTTP Response
-
-@enduml
-
-@startuml
-node "Kubernetes Cluster" {
-
-  node "Namespace: realistic" {
-
-    node "Pod: auth-service" {
-      component Auth
-    }
-
-    node "Pod: api-service" {
-      component API
-    }
-
-    node "Pod: data-service" {
-      component Data
-    }
-
-    node "Ingress Controller" {
-      component NGINX
-    }
-
-  }
-
-  node "Monitoring" {
-    component Prometheus
-    component Grafana
-  }
+package "Controles Experimentales (C1-C4)" {
+  [API Gateway]
+  [Service Mesh (Istio)]
+  [Network Policies]
+  [Rate Limiting]
 }
 
-node "Load Generator" {
-  component k6
+package "Servicios Simulados" {
+  [s0]
+  [s1]
+  [sdb1]
 }
 
-k6 --> NGINX
-NGINX --> API
-API --> Auth
-API --> Data
-
-Prometheus --> API
-Prometheus --> Auth
-Prometheus --> Data
-
-@enduml
-
-@startuml
-
-class User {
-  +id: String
-  +username: String
-  +email: String
+package "Servicios Realistas" {
+  [auth-service]
+  [api-service]
+  [data-service]
 }
 
-class AuthService {
-  +login()
-  +validateToken()
+package "Resultados" {
+  [Métricas de desempeño]
+  [Comparación y benchmark]
 }
 
-class ApiService {
-  +createUser()
-  +listUsers()
-}
+' Flujo de usuario y pruebas de carga
+User --> [API Gateway] : Solicitud HTTP (k6)
+[API Gateway] --> [auth-service] : Validar Token
+[API Gateway] --> [api-service] : Reenviar Petición
+[api-service] --> [auth-service] : Validar Token (opcional)
+[api-service] --> [data-service] : Consultar/Guardar Datos
 
-class DataService {
-  +saveUser()
-  +getUsers()
-}
+' Servicios simulados (pueden ser llamados por el gateway o directamente)
+[API Gateway] --> [s0]
+[s0] --> [s1]
+[s1] --> [sdb1]
 
-AuthService --> User
-ApiService --> User
-DataService --> User
+' Controles experimentales aplicados
+[Service Mesh (Istio)] ..> [auth-service]
+[Service Mesh (Istio)] ..> [api-service]
+[Service Mesh (Istio)] ..> [data-service]
+[Service Mesh (Istio)] ..> [s0]
+[Service Mesh (Istio)] ..> [s1]
+[Service Mesh (Istio)] ..> [sdb1]
 
-ApiService --> DataService
-ApiService --> AuthService
+[Rate Limiting] ..> [API Gateway]
+[Rate Limiting] ..> [api-service]
+[Rate Limiting] ..> [s0]
+
+[Network Policies] ..> [auth-service]
+[Network Policies] ..> [api-service]
+[Network Policies] ..> [data-service]
+[Network Policies] ..> [s0]
+[Network Policies] ..> [s1]
+[Network Policies] ..> [sdb1]
+
+' Orquestación y automatización
+[Orquestación Kubernetes] --> [auth-service]
+[Orquestación Kubernetes] --> [api-service]
+[Orquestación Kubernetes] --> [data-service]
+[Orquestación Kubernetes] --> [s0]
+[Orquestación Kubernetes] --> [s1]
+[Orquestación Kubernetes] --> [sdb1]
+
+[Automatización de despliegue] --> [Servicios Simulados]
+[Automatización de despliegue] --> [Servicios Realistas]
+[Automatización de despliegue] --> [Controles Experimentales (C1-C4)]
+
+' Observabilidad y resultados
+[Observabilidad (Prometheus, Grafana, Jaeger, Kiali)] --> [auth-service]
+[Observabilidad (Prometheus, Grafana, Jaeger, Kiali)] --> [api-service]
+[Observabilidad (Prometheus, Grafana, Jaeger, Kiali)] --> [data-service]
+[Observabilidad (Prometheus, Grafana, Jaeger, Kiali)] --> [s0]
+[Observabilidad (Prometheus, Grafana, Jaeger, Kiali)] --> [s1]
+[Observabilidad (Prometheus, Grafana, Jaeger, Kiali)] --> [sdb1]
+[Observabilidad (Prometheus, Grafana, Jaeger, Kiali)] --> [Métricas de desempeño]
+
+[Pruebas de carga (k6)] --> [API Gateway]
+[Pruebas de carga (k6)] --> [s0]
+
+[Métricas de desempeño] --> [Comparación y benchmark]
 
 @enduml

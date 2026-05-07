@@ -1,5 +1,6 @@
 from kubernetes import client, config, utils
 from kubernetes.client.rest import ApiException
+import re
 import yaml
 import json
 import os
@@ -25,8 +26,12 @@ def deploy_items(folder,st):
 
     for yaml_to_apply in items:
         with open(yaml_to_apply) as f:
-            complete_yaml = yaml.load_all(f,Loader=yaml.FullLoader)
-            for partial_yaml in complete_yaml:
+            raw = f.read()
+        # Remove unresolved {{PLACEHOLDER}} artifacts from muBench templates
+        raw = re.sub(r'^\s*\{\{[^}]+\}\}\s*\n', '', raw, flags=re.MULTILINE)
+        raw = re.sub(r'\{\{[^}]+\}\}', '', raw)
+        complete_yaml = yaml.load_all(raw, Loader=yaml.FullLoader)
+        for partial_yaml in complete_yaml:
                 try:
                     if partial_yaml["kind"] == "Deployment":
                         k8s_apps_api.create_namespaced_deployment(namespace=partial_yaml["metadata"]["namespace"], body=partial_yaml)

@@ -1,7 +1,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
-const AUTH_BASE = __ENV.AUTH_BASE || 'http://127.0.0.1:18082';
+const AUTH_BASE = __ENV.AUTH_BASE || 'http://127.0.0.1:30084';
 const API_BASE = __ENV.API_BASE || 'http://127.0.0.1:30081';
 
 export const options = {

@@ -1,0 +1,102 @@
+apiVersion: v1
+data:
+  workmodel.json: |
+    {
+      "api": {
+        "external_services": [
+          {
+            "seq_len": 1,
+            "services": [
+              "auth"
+            ],
+            "probabilities": {
+              "auth": 1.0
+            }
+          },
+          {
+            "seq_len": 1,
+            "services": [
+              "sdb-data"
+            ],
+            "probabilities": {
+              "sdb-data": 1.0
+            }
+          }
+        ],
+        "internal_service": {
+          "api_function": {
+            "jwt_secret": "mubench-dev-secret",
+            "rate_limit_enabled": false,
+            "rate_limit_rpm": 600,
+            "processing_latency_ms": 10,
+            "mean_response_size": 2
+          }
+        },
+        "request_method": "rest",
+        "workers": 2,
+        "threads": 8,
+        "replicas": 1,
+        "cpu-limits": "500m",
+        "cpu-requests": "200m",
+        "memory-limits": "256Mi",
+        "memory-requests": "128Mi",
+        "url": "api.mubench-realistic.svc.cluster.local",
+        "path": "/api/v1",
+        "image": "msvcbench/microservice:latest",
+        "namespace": "mubench-realistic"
+      },
+      "auth": {
+        "external_services": [],
+        "internal_service": {
+          "auth_function": {
+            "jwt_secret": "mubench-dev-secret",
+            "jwt_expire_minutes": 30,
+            "username": "demo",
+            "auth_latency_ms": 5,
+            "mean_response_size": 1
+          }
+        },
+        "request_method": "rest",
+        "workers": 2,
+        "threads": 8,
+        "replicas": 1,
+        "cpu-limits": "300m",
+        "cpu-requests": "100m",
+        "memory-limits": "128Mi",
+        "memory-requests": "64Mi",
+        "url": "auth.mubench-realistic.svc.cluster.local",
+        "path": "/api/v1",
+        "image": "msvcbench/microservice:latest",
+        "namespace": "mubench-realistic"
+      },
+      "sdb-data": {
+        "external_services": [],
+        "internal_service": {
+          "data_function": {
+            "query_latency_ms": 20,
+            "db_rows": 10,
+            "simulate_disk": false,
+            "disk_write_block_count": 100,
+            "disk_write_block_size": 512,
+            "tmp_file_name": "mub-data-tmp.txt",
+            "mean_response_size": 5
+          }
+        },
+        "request_method": "rest",
+        "workers": 2,
+        "threads": 8,
+        "replicas": 1,
+        "cpu-limits": "300m",
+        "cpu-requests": "100m",
+        "memory-limits": "128Mi",
+        "memory-requests": "64Mi",
+        "url": "sdb-data.mubench-realistic.svc.cluster.local",
+        "path": "/api/v1",
+        "image": "msvcbench/microservice:latest",
+        "namespace": "mubench-realistic"
+      }
+    }
+kind: ConfigMap
+metadata:
+  name: workmodel
+  namespace: mubench-realistic
