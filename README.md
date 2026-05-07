@@ -305,3 +305,19 @@ User --> [API Gateway] : Solicitud HTTP (k6)
 [Métricas de desempeño] --> [Comparación y benchmark]
 
 @enduml
+
+## Visualización de métricas de experimentos con Grafana
+
+La integración de k6, Prometheus y Grafana permite visualizar en tiempo real y analizar los resultados de los experimentos tanto en escenarios realistas como simulados:
+
+- **k6** genera la carga y puede exportar métricas a Prometheus usando el output `k6-to-prometheus`.
+- **Prometheus** recolecta métricas de los servicios, del cluster y de k6 (latencia, throughput, tasa de error, recursos, etc.).
+- **Grafana** permite visualizar dashboards personalizados para comparar el impacto de los controles experimentales (C1–C4) sobre las métricas clave.
+
+Para visualizar los resultados:
+1. Ejecuta los experimentos usando los scripts y manifiestos adaptados para HTTPS.
+2. Asegúrate de que k6 exporte métricas a Prometheus (ver ejemplos en RealisticServices/k6/realistic-flow.js).
+3. Accede a Grafana (`http://<MASTER_IP>:30001`) y selecciona el dashboard correspondiente (por ejemplo, `mubench-dashboard.json`).
+4. Analiza y compara las métricas de desempeño para cada variante experimental.
+
+Esta integración permite un ciclo completo de benchmarking, desde la generación de carga hasta la visualización y comparación de resultados en Grafana.

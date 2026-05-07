@@ -1,0 +1,63 @@
+@startuml
+!theme spacelab
+
+actor "Usuario / k6" as User
+
+package "Kubernetes Cluster" {
+  [Prometheus]
+  [Grafana]
+  [Istio Ingress]
+  [Linkerd Proxy]
+  [Kong]
+  [NGINX]
+  [Namespace: realistic] {
+    [auth-service]
+    [api-service]
+    [data-service]
+    [postgres]
+  }
+}
+
+User --> [Istio Ingress] : Solicitud HTTPS (k6)
+User --> [Kong] : Solicitud HTTPS (k6)
+User --> [NGINX] : Solicitud HTTPS (k6)
+User --> [Linkerd Proxy] : Solicitud HTTPS (k6)
+
+[Istio Ingress] --> [auth-service]
+[Istio Ingress] --> [api-service]
+[Linkerd Proxy] --> [auth-service]
+[Linkerd Proxy] --> [api-service]
+[api-service] --> [auth-service]
+[api-service] --> [data-service]
+[data-service] --> [postgres]
+
+[Kong] --> [auth-service]
+[Kong] --> [api-service]
+[api-service] --> [auth-service]
+[api-service] --> [data-service]
+[data-service] --> [postgres]
+
+[NGINX] --> [auth-service]
+[NGINX] --> [api-service]
+[api-service] --> [auth-service]
+...existing code...
+[api-service] --> [data-service]
+[data-service] --> [postgres]
+
+[Prometheus] ..> [auth-service] : scrape /metrics
+[Prometheus] ..> [api-service] : scrape /metrics
+[Prometheus] ..> [data-service] : scrape /metrics
+[Prometheus] ..> [Istio Ingress]
+[Prometheus] ..> [Kong]
+[Prometheus] ..> [NGINX]
+
+[Grafana] ..> [Prometheus] : Dashboards
+[Jaeger] ..> [api-service] : Tracing
+[Jaeger] ..> [auth-service] : Tracing
+[Jaeger] ..> [data-service] : Tracing
+[Kiali] ..> [Istio Ingress]
+[Kiali] ..> [api-service]
+[Kiali] ..> [auth-service]
+[Kiali] ..> [data-service]
+
+@enduml
