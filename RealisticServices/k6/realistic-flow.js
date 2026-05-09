@@ -1,10 +1,22 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
-const AUTH_BASE = __ENV.AUTH_BASE || 'http://127.0.0.1:30084';
-const API_BASE = __ENV.API_BASE || 'http://127.0.0.1:30081';
+// AUTH_BASE y API_BASE pueden incluir prefijo de ruta cuando se usa ingress.
+// Ejemplo HTTPS realista: AUTH_BASE=https://localhost/auth  API_BASE=https://localhost/api
+const AUTH_BASE = (__ENV.AUTH_BASE || 'https://localhost/auth').replace(/\/?$/, '');
+const API_BASE = (__ENV.API_BASE || 'https://localhost/api').replace(/\/?$/, '');
+const INSECURE_TLS = ((__ENV.K6_INSECURE_SKIP_TLS_VERIFY || 'true').toLowerCase() === 'true');
+const HOST_HEADER = __ENV.HOST_HEADER || '';
+
+function withOptionalHostHeader(headers) {
+  if (!HOST_HEADER) {
+    return headers;
+  }
+  return { ...headers, Host: HOST_HEADER };
+}
 
 export const options = {
+  insecureSkipTLSVerify: INSECURE_TLS,
   scenarios: {
     realistic_flow: {
       executor: 'ramping-vus',
@@ -25,7 +37,7 @@ export const options = {
 
 function login() {
   const payload = JSON.stringify({ username: 'demo', password: 'demo123' });
-  const params = { headers: { 'Content-Type': 'application/json' } };
+  const params = { headers: withOptionalHostHeader({ 'Content-Type': 'application/json' }) };
   const res = http.post(`${AUTH_BASE}/login`, payload, params);
   const hasToken = res && res.status === 200 && res.body && !!res.json('access_token');
 
@@ -45,7 +57,7 @@ export default function () {
   }
 
   const profileRes = http.get(`${API_BASE}/profile?user_id=1`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: withOptionalHostHeader({ Authorization: `Bearer ${token}` }),
   });
 
   const hasProfileUser = profileRes && profileRes.status === 200 && profileRes.body && !!profileRes.json('user.username');

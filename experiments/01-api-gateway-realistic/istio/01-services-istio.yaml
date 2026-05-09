@@ -1,0 +1,50 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: realistic-gateway
+  namespace: realistic
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE
+        credentialName: mubench-tls
+      hosts:
+        - "*"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: realistic-vs
+  namespace: realistic
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - realistic-gateway
+  http:
+    - match:
+        - uri:
+            exact: /profile
+          method:
+            exact: GET
+      route:
+        - destination:
+            host: api-service.realistic.svc.cluster.local
+            port:
+              number: 8080
+    - match:
+        - uri:
+            exact: /login
+          method:
+            exact: POST
+      route:
+        - destination:
+            host: auth-service.realistic.svc.cluster.local
+            port:
+              number: 8080

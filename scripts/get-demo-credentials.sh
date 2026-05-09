@@ -2,13 +2,13 @@
 # Script para obtener y mostrar credenciales de acceso para los entornos realistas
 set -euo pipefail
 
-API_URL="https://realistic.local/auth/login"
+API_URL="${API_URL:-https://localhost/auth/login}"
 USERNAME="demo"
 PASSWORD="demo123"
 
-# Solicitar token de acceso
 
-RESPONSE=$(curl -sk -X POST "$API_URL" -H 'Content-Type: application/json' -d '{"username":"'$USERNAME'","password":"'$PASSWORD'"}')
+# Solicitar token de acceso
+RESPONSE=$(curl -k -s -X POST "$API_URL" -H 'Content-Type: application/json' -d '{"username":"'$USERNAME'","password":"'$PASSWORD'"}')
 TOKEN=$(echo "$RESPONSE" | sed -n 's/.*"access_token"[ ]*:[ ]*"\([^"]*\)".*/\1/p')
 
 if [ -z "$TOKEN" ]; then

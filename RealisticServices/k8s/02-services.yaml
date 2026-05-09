@@ -12,6 +12,10 @@ spec:
     metadata:
       labels:
         app: auth-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: auth-service
@@ -60,6 +64,10 @@ spec:
     metadata:
       labels:
         app: data-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: data-service
@@ -102,12 +110,14 @@ metadata:
   labels:
     app: data-service
 spec:
+  type: NodePort
   selector:
     app: data-service
   ports:
     - name: http
       port: 8080
       targetPort: 8080
+      nodePort: 30082
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -123,6 +133,10 @@ spec:
     metadata:
       labels:
         app: api-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: api-service

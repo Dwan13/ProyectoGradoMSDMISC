@@ -1,63 +1,104 @@
 @startuml
 !theme spacelab
 
-actor "Usuario / k6" as User
+' =========================
+' Visual Style
+' =========================
 
-package "Kubernetes Cluster" {
-  [Prometheus]
-  [Grafana]
-  [Istio Ingress]
-  [Linkerd Proxy]
-  [Kong]
-  [NGINX]
-  [Namespace: realistic] {
-    [auth-service]
-    [api-service]
-    [data-service]
-    [postgres]
-  }
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 12
+skinparam ArrowThickness 1.5
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+
+skinparam package {
+    BackgroundColor #DCEAFE
+    BorderColor #1D4ED8
+    FontColor #111827
+    FontStyle bold
 }
 
-User --> [Istio Ingress] : Solicitud HTTPS (k6)
-User --> [Kong] : Solicitud HTTPS (k6)
-User --> [NGINX] : Solicitud HTTPS (k6)
-User --> [Linkerd Proxy] : Solicitud HTTPS (k6)
+skinparam component {
+    BackgroundColor #FFFFFF
+    BorderColor #111827
+    FontColor #111827
+    FontStyle bold
+}
 
-[Istio Ingress] --> [auth-service]
+skinparam database {
+    BackgroundColor #FEF3C7
+    BorderColor #D97706
+    FontColor #78350F
+    FontStyle bold
+}
+
+skinparam actor {
+    BackgroundColor #DCFCE7
+    BorderColor #15803D
+    FontColor #14532D
+    FontStyle bold
+}
+
+skinparam arrow {
+    Color #111827
+}
+
+title <size:22><b>Experimental Microservices Architecture</b></size>
+
+actor "k6 Load Generator" as User
+
+package "Kubernetes Cluster" {
+
+    package "Security Layer" {
+        [Istio Ingress]
+        [Kong Gateway]
+        [NGINX Gateway]
+        [Linkerd mTLS]
+    }
+
+    package "Application Namespace: realistic" {
+
+        [api-service]
+        [auth-service]
+        [data-service]
+
+        database "PostgreSQL" as DB
+    }
+
+    package "Monitoring Stack" {
+        [Prometheus]
+        [Grafana]
+    }
+}
+
+' =========================
+' Traffic Flow
+' =========================
+
+User --> [Istio Ingress]
+User --> [Kong Gateway]
+User --> [NGINX Gateway]
+User --> [Linkerd mTLS]
+
+' =========================
+' Internal Communication
+' =========================
+
 [Istio Ingress] --> [api-service]
-[Linkerd Proxy] --> [auth-service]
-[Linkerd Proxy] --> [api-service]
+[Kong Gateway] --> [api-service]
+[NGINX Gateway] --> [api-service]
+[Linkerd mTLS] --> [api-service]
+
 [api-service] --> [auth-service]
 [api-service] --> [data-service]
-[data-service] --> [postgres]
+[data-service] --> DB
 
-[Kong] --> [auth-service]
-[Kong] --> [api-service]
-[api-service] --> [auth-service]
-[api-service] --> [data-service]
-[data-service] --> [postgres]
+' =========================
+' Monitoring
+' =========================
 
-[NGINX] --> [auth-service]
-[NGINX] --> [api-service]
-[api-service] --> [auth-service]
-...existing code...
-[api-service] --> [data-service]
-[data-service] --> [postgres]
-
-[Prometheus] ..> [auth-service] : scrape /metrics
-[Prometheus] ..> [api-service] : scrape /metrics
-[Prometheus] ..> [data-service] : scrape /metrics
-[Prometheus] ..> [Istio Ingress]
-[Prometheus] ..> [Kong]
-[Prometheus] ..> [NGINX]
-
-[Grafana] ..> [Prometheus] : Dashboards
-[Jaeger] ..> [api-service] : Tracing
-[Jaeger] ..> [auth-service] : Tracing
-[Jaeger] ..> [data-service] : Tracing
-[Kiali] ..> [Istio Ingress]
-[Kiali] ..> [api-service]
-[Kiali] ..> [auth-service]
-[Kiali] ..> [data-service]
+[Prometheus] ..> [api-service] : metrics
+[Grafana] ..> [Prometheus]
 
 @enduml
