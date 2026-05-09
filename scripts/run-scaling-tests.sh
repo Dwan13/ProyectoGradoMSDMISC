@@ -74,9 +74,9 @@ log_error() {
 
 get_node_resources() {
   # Retorna: "cpu_millicores memory_mb"
-  kubectl top nodes 2>/dev/null | tail -1 | awk '{
+  microk8s kubectl top nodes 2>/dev/null | tail -1 | awk '{
     cpu_str=$2
-    mem_str=$3
+    mem_str=$4
     gsub(/m$/, "", cpu_str)
     gsub(/Mi$/, "", mem_str)
     print cpu_str " " mem_str
@@ -96,59 +96,76 @@ get_namespace_resources() {
 
 get_k6_metrics() {
   local json_file="$1"
+  local duration_s="${2:-60}"
   
   if [ ! -f "$json_file" ]; then
-    echo "0 0 0"
+    echo "0 0 0 0"
     return
   fi
   
-  # Extraer metrics finales (último objeto de salida k6)
-  local checks=0
-  local p95=0
-  local errors=0
-  
-  # k6 JSON Lines: parsear último objeto con type:summary
+  # k6 produce JSON Lines (un objeto por línea, no hay objeto resumen)
+  # Calcular avg_ms, p95_ms, err_% y rps desde los Points individuales
   python3 << PYEOF
-import json, sys
+import json
+from datetime import datetime
 try:
+  durations = []
+  failed_reqs = 0
+  total_reqs = 0
+  req_count = 0
+  req_times = []
+  duration_s = float('$duration_s')
+
   with open('$json_file') as f:
-    lines = f.readlines()
-  
-  checks_val = 100
-  p95_val = 0
-  error_val = 0
-  
-  # Buscar check rate
-  for line in reversed(lines):
-    try:
-      obj = json.loads(line)
-      if obj.get('metric') == 'checks' and obj.get('type') == 'Point':
-        checks_val = obj.get('data', {}).get('value', 1) * 100
-        break
-    except: pass
-  
-  # Buscar p95
-  for line in reversed(lines):
-    try:
-      obj = json.loads(line)
-      if (obj.get('metric') == 'http_req_duration' and 
-          obj.get('data', {}).get('tags', {}).get('quantile') == '0.95'):
-        p95_val = obj.get('data', {}).get('value', 0) / 1000  # a ms
-        break
-    except: pass
-  
-  # Buscar error rate
-  for line in reversed(lines):
-    try:
-      obj = json.loads(line)
-      if obj.get('metric') == 'http_req_failed' and obj.get('type') == 'Point':
-        error_val = obj.get('data', {}).get('value', 0) * 100
-        break
-    except: pass
-  
-  print(f"{checks_val:.1f} {p95_val:.2f} {error_val:.2f}")
+    for line in f:
+      try:
+        obj = json.loads(line)
+        if obj.get('type') != 'Point':
+          continue
+        metric = obj.get('metric', '')
+        value = obj.get('data', {}).get('value', 0)
+        time_s = obj.get('data', {}).get('time', '')
+
+        if metric == 'http_req_duration':
+          durations.append(value)  # valor en ms
+
+        elif metric == 'http_req_failed':
+          total_reqs += 1
+          failed_reqs += int(value)  # value es 1.0 o 0.0
+
+        elif metric == 'http_reqs':
+          # En k6, http_reqs suele reportar value=1 por request
+          req_count += int(value)
+          if time_s:
+            try:
+              req_times.append(datetime.fromisoformat(time_s))
+            except:
+              pass
+
+      except: pass
+
+  error_rate = (failed_reqs / total_reqs * 100) if total_reqs > 0 else 0
+
+  avg_ms = (sum(durations) / len(durations)) if durations else 0
+
+  if durations:
+    durations.sort()
+    idx = int(len(durations) * 0.95)
+    p95 = durations[min(idx, len(durations)-1)]
+  else:
+    p95 = 0
+
+  if duration_s > 0:
+    rps = req_count / duration_s
+  elif len(req_times) >= 2:
+    elapsed = (max(req_times) - min(req_times)).total_seconds()
+    rps = (req_count / elapsed) if elapsed > 0 else 0
+  else:
+    rps = 0
+
+  print(f"{avg_ms:.2f} {p95:.2f} {error_rate:.2f} {rps:.2f}")
 except Exception as e:
-  print(f"0 0 0")
+  print(f"0 0 0 0")
 PYEOF
 }
 
@@ -161,28 +178,49 @@ run_scaling_test_for_control() {
   log_info "═══════════════════════════════════════════════════════════"
   
   # Obtener baseline (1 VU) de resultados existentes o ejecutar
-  local baseline_file=$(ls -t "$RESULTS_DIR"/scaling_${control}_${variant}_1vus_*.json 2>/dev/null | head -1 || echo "")
-  
-  if [ -z "$baseline_file" ] || [ ! -f "$baseline_file" ]; then
-    log_info "Ejecutando benchmark baseline (1 VU)..."
-    baseline_file="$RESULTS_DIR/scaling_${control}_${variant}_1vus_$(date +%s).json"
-    
-    # Ejecutar k6 baseline
-    bash "$ROOT_DIR/scripts/run-k6-benchmark.sh" \
-      --control "$control" \
-      --variant "$variant" \
-      --vus 1 \
-      --duration 60 \
-      --output "$baseline_file" || {
-      log_error "Baseline failed para $control/$variant"
-      return 1
-    }
+  # Aplicar control state antes del baseline (reset + variante correcta)
+  log_info "Aplicando estado de control para $control/$variant..."
+  apply_control_state "$control" "$variant"
+
+  # Siempre ejecutar baseline fresco (no reusar archivos anteriores contaminados)
+  local baseline_file="$RESULTS_DIR/scaling_${control}_${variant}_1vus_$(date +%s).json"
+  log_info "Ejecutando benchmark baseline (1 VU)..."
+
+  local baseline_k6_exit=0
+  bash "$ROOT_DIR/scripts/run-k6-benchmark.sh" \
+    --control "$control" \
+    --variant "$variant" \
+    --vus 1 \
+    --duration 60 \
+    --output "$baseline_file" || baseline_k6_exit=$?
+
+  if [ "$baseline_k6_exit" -ne 0 ]; then
+    log_warn "k6 baseline terminó con exit code $baseline_k6_exit (se analizará JSON igualmente)"
+  fi
+
+  if [ ! -f "$baseline_file" ]; then
+    log_error "No se generó JSON baseline para $control/$variant"
+    return 1
   fi
   
-  local baseline_checks baseline_p95 baseline_err
-  read -r baseline_checks baseline_p95 baseline_err < <(get_k6_metrics "$baseline_file")
+  local baseline_avg baseline_p95 baseline_err baseline_rps
+  read -r baseline_avg baseline_p95 baseline_err baseline_rps < <(get_k6_metrics "$baseline_file" 60)
+
+  local baseline_cpu baseline_mem
+  read -r baseline_cpu baseline_mem < <(get_node_resources)
+  baseline_cpu="${baseline_cpu//[^0-9]/}"
+  baseline_mem="${baseline_mem//[^0-9]/}"
+  baseline_cpu="${baseline_cpu:-0}"
+  baseline_mem="${baseline_mem:-0}"
+  local node_cpu_max=6000  # 6 cores en mC (asumiendo 6 cores)
+  local node_mem_max=12000 # 12GB en MB (asumiendo 12GB)
+  local baseline_cpu_percent=$((baseline_cpu * 100 / node_cpu_max))
+  local baseline_mem_percent=$((baseline_mem * 100 / node_mem_max))
+
+  # Guardar baseline en CSV (VU=1)
+  echo "$control,$variant,1,$baseline_avg,$baseline_p95,$baseline_err,$baseline_rps,$baseline_cpu,$baseline_mem" >> "$REPORT_CSV"
   
-  log_success "Baseline (1 VU): checks=$baseline_checks%, p95=${baseline_p95}ms, err=$baseline_err%"
+  log_success "Baseline (1 VU): avg=${baseline_avg}ms, p95=${baseline_p95}ms, err=${baseline_err}%, rps=${baseline_rps}"
   
   local continue_scaling=true
   
@@ -197,39 +235,54 @@ run_scaling_test_for_control() {
     
     local test_file="$RESULTS_DIR/scaling_${control}_${variant}_${vus}vus_$(date +%s).json"
     
+    # Reaplicar control state antes de cada nivel de VUs
+    apply_control_state "$control" "$variant"
+
     # Ejecutar k6
-    if ! bash "$ROOT_DIR/scripts/run-k6-benchmark.sh" \
+    local k6_exit=0
+    bash "$ROOT_DIR/scripts/run-k6-benchmark.sh" \
       --control "$control" \
       --variant "$variant" \
       --vus "$vus" \
       --duration "$DURATION_PER_STAGE" \
-      --output "$test_file"; then
-      log_error "Test con $vus VUs falló"
+      --output "$test_file" || k6_exit=$?
+
+    if [ "$k6_exit" -ne 0 ]; then
+      log_warn "k6 con $vus VUs terminó con exit code $k6_exit (se analizará JSON igualmente)"
+    fi
+
+    if [ ! -f "$test_file" ]; then
+      log_error "No se generó JSON para $control/$variant con $vus VUs"
       continue_scaling=false
       break
     fi
     
     # Analizar resultados
-    local checks p95 errors
-    read -r checks p95 errors < <(get_k6_metrics "$test_file")
+    local avg_ms p95 errors rps
+    read -r avg_ms p95 errors rps < <(get_k6_metrics "$test_file" "$DURATION_PER_STAGE")
     
     log_success "Resultados con $vus VUs:"
-    echo -e "  ${BLUE}Checks:${NC} $checks% (baseline: $baseline_checks%)"
+    echo -e "  ${BLUE}avg:${NC} ${avg_ms}ms (baseline: ${baseline_avg}ms)"
     echo -e "  ${BLUE}p95:${NC} ${p95}ms (baseline: ${baseline_p95}ms)"
-    echo -e "  ${BLUE}Errors:${NC} $errors% (baseline: $baseline_err%)"
+    echo -e "  ${BLUE}Errors:${NC} ${errors}% (baseline: ${baseline_err}%)"
+    echo -e "  ${BLUE}RPS:${NC} ${rps} (baseline: ${baseline_rps})"
     
     # Evaluar thresholds
     local node_cpu node_mem
     read -r node_cpu node_mem < <(get_node_resources)
-    
-    local node_cpu_max=6000  # 6 cores en mC (asumiendo 6 cores)
-    local node_mem_max=12000 # 12GB en MB (asumiendo 12GB)
+    node_cpu="${node_cpu//[^0-9]/}"
+    node_mem="${node_mem//[^0-9]/}"
+    node_cpu="${node_cpu:-0}"
+    node_mem="${node_mem:-0}"
     
     local cpu_percent=$((node_cpu * 100 / node_cpu_max))
     local mem_percent=$((node_mem * 100 / node_mem_max))
     
     echo -e "  ${BLUE}Recursos nodo:${NC} CPU=$cpu_percent%, MEM=$mem_percent%"
     
+    # Guardar resultado en CSV
+    echo "$control,$variant,$vus,$avg_ms,$p95,$errors,$rps,$node_cpu,$node_mem" >> "$REPORT_CSV"
+
     # Decisión de continuar
     if (( $(echo "$p95 > $P95_THRESHOLD_MS" | bc -l) )); then
       log_warn "p95 ($p95ms) supera threshold ($P95_THRESHOLD_MS ms) → DETENER"
@@ -243,11 +296,79 @@ run_scaling_test_for_control() {
     else
       log_success "✓ Métricas OK, escalamiento viable"
     fi
-    
-    # Guardar resultado en CSV
-    echo "$control,$variant,$vus,$checks%,$p95,$errors%,$cpu_percent%,$mem_percent%" >> \
-      "$RESULTS_DIR/scaling-report_$(date +%Y%m%d).csv"
   done
+}
+
+################################################################################
+# Función: Aplicar estado del control (reset + variante)
+################################################################################
+
+apply_control_state() {
+  local control="$1"
+  local variant="$2"
+  local NS="realistic"
+
+  log_info "  → Reseteando estado previo..."
+
+  # Limpiar recursos de red/ingress/istio
+  microk8s kubectl delete ingress --all -n "$NS" --ignore-not-found &>/dev/null || true
+  microk8s kubectl delete gateway.networking.istio.io --all -n "$NS" --ignore-not-found &>/dev/null || true
+  microk8s kubectl delete virtualservice --all -n "$NS" --ignore-not-found &>/dev/null || true
+  microk8s kubectl delete networkpolicy --all -n "$NS" --ignore-not-found &>/dev/null || true
+
+  # Resetear rate limit a neutral
+  microk8s kubectl set env deployment/api-service -n "$NS" \
+    RATE_LIMIT_ENABLED=false RATE_LIMIT_RPM=600 &>/dev/null || true
+
+  # Resetar label istio-injection
+  microk8s kubectl label namespace "$NS" istio-injection=disabled --overwrite &>/dev/null || true
+
+  log_info "  → Aplicando variante $control/$variant..."
+
+  case "$control" in
+    C1)
+      case "$variant" in
+        baseline) microk8s kubectl apply -f "$ROOT_DIR/RealisticServices/k8s/07-c1-ingress-gateway.yaml" &>/dev/null ;;
+        istio)    microk8s kubectl apply -f "$ROOT_DIR/experiments/01-api-gateway-realistic/istio/01-services-istio.yaml" &>/dev/null ;;
+        kong)     microk8s kubectl apply -f "$ROOT_DIR/experiments/01-api-gateway-realistic/kong/01-services-kong.yaml" &>/dev/null ;;
+      esac
+      ;;
+    C2)
+      local manifest_dir="$ROOT_DIR/experiments/02-mtls-service-mesh-realistic/$variant"
+      if [ -d "$manifest_dir" ]; then
+        for f in "$manifest_dir"/*.yaml; do
+          [ -f "$f" ] && microk8s kubectl apply -f "$f" &>/dev/null || true
+        done
+      fi
+      ;;
+    C3)
+      case "$variant" in
+        basic)  microk8s kubectl apply -f "$ROOT_DIR/RealisticServices/k8s/08-c3-networkpolicy.yaml" &>/dev/null ;;
+        strict) microk8s kubectl apply -f "$ROOT_DIR/RealisticServices/k8s/08-c3-networkpolicy-strict.yaml" &>/dev/null ;;
+      esac
+      ;;
+    C4)
+      case "$variant" in
+        moderate)
+          microk8s kubectl set env deployment/api-service -n "$NS" \
+            RATE_LIMIT_ENABLED=true RATE_LIMIT_RPM=120 &>/dev/null
+          microk8s kubectl rollout restart deployment/api-service -n "$NS" &>/dev/null
+          ;;
+        strict)
+          microk8s kubectl set env deployment/api-service -n "$NS" \
+            RATE_LIMIT_ENABLED=true RATE_LIMIT_RPM=20 &>/dev/null
+          microk8s kubectl rollout restart deployment/api-service -n "$NS" &>/dev/null
+          ;;
+      esac
+      ;;
+  esac
+
+  # Esperar rollout de los servicios principales
+  for dep in auth-service api-service data-service; do
+    microk8s kubectl rollout status deployment/"$dep" -n "$NS" --timeout=120s &>/dev/null || true
+  done
+
+  sleep 3  # Breve pausa para estabilizar
 }
 
 ################################################################################
@@ -256,9 +377,7 @@ run_scaling_test_for_control() {
 
 # Encabezado del report CSV
 REPORT_CSV="$RESULTS_DIR/scaling-report_$(date +%Y%m%d).csv"
-if [ ! -f "$REPORT_CSV" ]; then
-  echo "control,variant,vus,checks,p95_ms,errors,cpu_%,mem_%" > "$REPORT_CSV"
-fi
+echo "control,variant,vus,avg_ms,p95_ms,err_pct,rps,cpu_mcores,mem_mib" > "$REPORT_CSV"
 
 log_info "Iniciando test de escalabilidad progresiva"
 log_info "Resultados: $RESULTS_DIR"

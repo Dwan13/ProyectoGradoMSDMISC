@@ -117,10 +117,36 @@ microk8s kubectl get svc -n realistic 2>/dev/null || log_warn "Sin servicios aú
 echo ""
 
 ################################################################################
-# Step 5: Información final
+# Step 5: Re-escalar deployments
 ################################################################################
 
-log_info "Paso 5/5: Resumen final..."
+log_info "Paso 5/6: Levantando servicios realistas..."
+
+if microk8s kubectl get deployment -n realistic &>/dev/null 2>&1; then
+  DEPS=$(microk8s kubectl get deployment -n realistic --no-headers 2>/dev/null | awk '{print $1}' | tr '\n' ' ')
+  if [ -n "$DEPS" ]; then
+    log_info "  → Escalando deployments a 1 réplica: $DEPS"
+    microk8s kubectl scale deployment $DEPS -n realistic --replicas=1 2>/dev/null || true
+
+    log_info "  → Esperando que los pods estén ready..."
+    for dep in $DEPS; do
+      microk8s kubectl rollout status deployment/"$dep" -n realistic --timeout=120s 2>/dev/null \
+        && log_success "  ✓ $dep ready" || log_warn "  ! $dep tardó más de lo esperado"
+    done
+  else
+    log_warn "No hay deployments. Ejecuta el primer test y se desplegarán automáticamente."
+  fi
+else
+  log_warn "No hay deployments en namespace 'realistic'. Ejecuta run-all-controls-experiments.sh."
+fi
+
+echo ""
+
+################################################################################
+# Step 6: Información final
+################################################################################
+
+log_info "Paso 6/6: Resumen final..."
 
 cat << EOF
 
