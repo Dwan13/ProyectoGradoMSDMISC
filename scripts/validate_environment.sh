@@ -66,27 +66,27 @@ fi
 
 # Check Prometheus
 log "Verificando Prometheus..."
-if microk8s kubectl get pods -n observability 2>/dev/null | grep -q prometheus; then
-    success "Prometheus pods encontrados en namespace observability"
+if microk8s kubectl get pods -n monitoring 2>/dev/null | grep -q prometheus; then
+    success "Prometheus pods encontrados en namespace monitoring"
 else
-    warn "Prometheus no encontrado en namespace observability"
+    warn "Prometheus no encontrado (opcional para esta entrega)"
 fi
 
 # Check Grafana
 log "Verificando Grafana..."
-if microk8s kubectl get pods -n observability 2>/dev/null | grep -q grafana; then
+if microk8s kubectl get pods -n monitoring 2>/dev/null | grep -q grafana; then
     success "Grafana pods encontrados"
 else
-    warn "Grafana no encontrado"
+    warn "Grafana no encontrado (opcional para esta entrega)"
 fi
 
-# Check mubench-realistic pods
-log "Verificando pods de mubench-realistic..."
-POD_COUNT=$(microk8s kubectl get pods -n mubench-realistic 2>/dev/null | grep -c "Running" || echo "0")
+# Check mubench-real pods
+log "Verificando pods de mubench-real..."
+POD_COUNT=$(microk8s kubectl get pods -n mubench-real 2>/dev/null | grep -c "Running" || echo "0")
 if [[ "$POD_COUNT" -gt 0 ]]; then
-    success "mubench-realistic pods Running: $POD_COUNT"
+    success "mubench-real pods Running: $POD_COUNT"
 else
-    warn "No se encontraron pods en mubench-realistic. Ejecutar: ./scripts/deploy-mubench-complete.sh"
+    warn "No se encontraron pods en mubench-real. Ejecutar: ./scripts/setup-postgres-real-scenario.sh"
 fi
 
 # Check realistic pods
@@ -95,15 +95,27 @@ REAL_COUNT=$(microk8s kubectl get pods -n realistic 2>/dev/null | grep -c "Runni
 if [[ "$REAL_COUNT" -ge 4 ]]; then
     success "realistic pods Running: $REAL_COUNT"
 else
-    warn "Pods realistic incompletos ($REAL_COUNT/4). Ejecutar: ./scripts/deploy-mubench-complete.sh"
+    warn "Pods realistic incompletos ($REAL_COUNT/4). Ejecutar setup del escenario correspondiente"
 fi
 
 # Check scripts
 log "Verificando scripts..."
-if [[ -x "./scripts/deploy-mubench-complete.sh" ]]; then
-    success "deploy-mubench-complete.sh es ejecutable"
+if [[ -x "./scripts/setup-postgres-real-scenario.sh" ]]; then
+    success "setup-postgres-real-scenario.sh es ejecutable"
 else
-    error "deploy-mubench-complete.sh no es ejecutable o no existe"
+    error "setup-postgres-real-scenario.sh no es ejecutable o no existe"
+fi
+
+if [[ -x "./scripts/run-s2-final-repro.sh" ]]; then
+    success "run-s2-final-repro.sh es ejecutable"
+else
+    error "run-s2-final-repro.sh no es ejecutable o no existe"
+fi
+
+if [[ -x "./scripts/run-s6-integrated-repro.sh" ]]; then
+    success "run-s6-integrated-repro.sh es ejecutable"
+else
+    error "run-s6-integrated-repro.sh no es ejecutable o no existe"
 fi
 
 if [[ -x "./scripts/install_k6.sh" ]]; then
@@ -164,10 +176,10 @@ if [[ $ERRORS -eq 0 ]]; then
     echo -e "${GREEN}✅ Sistema listo para usar muBench${RESET}"
     echo ""
     echo "Próximos pasos:"
-    echo "  1. Desplegar (si no está): ./scripts/deploy-mubench-complete.sh"
-    echo "  2. Ver credenciales: cat ~/.mubench_access"
-    echo "  3. Acceder Grafana: http://localhost:30001/login"
-    echo "  4. Ejecutar experimento: cd experiments/01-api-gateway-realistic && bash run-exp01-realistic.sh"
+    echo "  1. Levantar S2: ./scripts/setup-postgres-real-scenario.sh"
+    echo "  2. Campana reproducible S2: ./scripts/run-s2-final-repro.sh --execute --continue-on-readiness-fail"
+    echo "  3. Campana integrada S6: ./scripts/run-s6-integrated-repro.sh --execute --continue-on-readiness-fail"
+    echo "  4. Analisis S6: python3 Testing/analyze_s6_integrated_results.py && python3 Testing/s6_statistical_analysis.py"
     exit 0
 else
     echo -e "${RED}❌ Se encontraron errores. Revisar y corregir.${RESET}"
