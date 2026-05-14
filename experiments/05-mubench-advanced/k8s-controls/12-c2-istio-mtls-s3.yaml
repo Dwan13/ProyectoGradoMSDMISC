@@ -1,0 +1,20 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: s3-default-strict
+  namespace: mubench-advanced
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: s3-gateway-permissive
+  namespace: mubench-advanced
+spec:
+  selector:
+    matchLabels:
+      app: gw-nginx
+  mtls:
+    mode: PERMISSIVE

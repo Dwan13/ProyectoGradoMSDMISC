@@ -1,0 +1,20 @@
+{
+  "ServiceGraphParameters": {
+    "vertices": 8,
+    "external_service_groups": 2,
+    "power": 0.15,
+    "seq_len": 150,
+    "zero_appeal": 2.8,
+    "service_probability": {
+      "model": "const",
+      "params": { "value": 1 }
+    },
+    "dbs": {
+      "nodb": 0.25,
+      "sdb1": 0.75,
+      "sdb2": 0.0
+    }
+  },
+  "OutputPath": "experiments/05-mubench-advanced/SimulationWorkspace",
+  "OutputFile": "servicegraph.json"
+}

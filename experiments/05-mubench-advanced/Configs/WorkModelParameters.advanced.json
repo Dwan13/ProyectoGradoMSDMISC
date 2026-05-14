@@ -1,0 +1,83 @@
+{
+  "WorkModelParameters": {
+    "f0": {
+      "type": "function",
+      "value": {
+        "name": "compute_pi",
+        "recipient": "service",
+        "probability": 0.0,
+        "parameters": {
+          "mean_response_size": 12,
+          "range_complexity": [150, 300]
+        },
+        "workers": 4,
+        "threads": 16,
+        "cpu-requests": "300m",
+        "cpu-limits": "800m"
+      }
+    },
+    "f1": {
+      "type": "function",
+      "value": {
+        "name": "loader",
+        "recipient": "service",
+        "probability": 1.0,
+        "parameters": {
+          "cpu_stress": {
+            "run": true,
+            "range_complexity": [400, 900],
+            "thread_pool_size": 1,
+            "trials": 1
+          },
+          "memory_stress": {
+            "run": false,
+            "memory_size": 12000,
+            "memory_io": 1200
+          },
+          "disk_stress": {
+            "run": false,
+            "tmp_file_name": "mub_advanced_tmp.txt",
+            "disk_write_block_count": 400,
+            "disk_write_block_size": 1024
+          },
+          "sleep_stress": {
+            "run": false,
+            "sleep_time": 0.01
+          },
+          "mean_response_size": 14
+        },
+        "workers": 4,
+        "threads": 16,
+        "cpu-requests": "300m",
+        "cpu-limits": "900m",
+        "replicas": 1
+      }
+    },
+    "request_method": {
+      "type": "metadata",
+      "value": "rest"
+    },
+    "databases_prefix": {
+      "type": "metadata",
+      "value": "sdb"
+    },
+    "override": {
+      "type": "metadata",
+      "value": {
+        "sdb1": { "sidecar": "mongo:4.4.9" }
+      }
+    },
+    "ServiceGraphFilePath": {
+      "type": "metadata",
+      "value": "experiments/05-mubench-advanced/SimulationWorkspace/servicegraph.json"
+    },
+    "OutputPath": {
+      "type": "metadata",
+      "value": "experiments/05-mubench-advanced/SimulationWorkspace"
+    },
+    "OutputFile": {
+      "type": "metadata",
+      "value": "workmodel.json"
+    }
+  }
+}

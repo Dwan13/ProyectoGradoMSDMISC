@@ -67,8 +67,8 @@ def summarize_metric(result):
 
 def main():
     prom_url = "http://localhost:30000"
-    results_dir = "Testing/results/auto_runs"
-    namespace = "realistic"
+    results_dir = "Testing/results/auto_runs/randomized_campaigns"
+    namespace = "mubench-real"
     pod_regex = "(api-service|auth-service|data-service|postgres).*"
 
     print("\nResumen de consumo de CPU y memoria por experimento (Prometheus):\n")
@@ -76,7 +76,7 @@ def main():
     print("-"*80)
     csv_rows = []
 
-    for f in sorted(glob(os.path.join(results_dir, "*.json"))):
+    for f in sorted(glob(os.path.join(results_dir, "s2_academic_*.json"))):
         t0, t1 = parse_k6_run(f)
         if not t0 or not t1:
             continue

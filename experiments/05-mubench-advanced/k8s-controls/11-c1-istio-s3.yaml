@@ -1,0 +1,35 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: s3-gateway-istio
+  namespace: mubench-advanced
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "*"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: s3-vs-istio
+  namespace: mubench-advanced
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - s3-gateway-istio
+  http:
+    - match:
+        - uri:
+            prefix: /s0
+      route:
+        - destination:
+            host: gw-nginx.mubench-advanced.svc.cluster.local
+            port:
+              number: 80

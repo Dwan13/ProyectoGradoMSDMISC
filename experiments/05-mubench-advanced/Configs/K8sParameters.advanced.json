@@ -1,0 +1,18 @@
+{
+  "K8sParameters": {
+    "prefix_yaml_file": "mubench-advanced",
+    "namespace": "mubench-advanced",
+    "image": "msvcbench/microservice:latest",
+    "cluster_domain": "cluster",
+    "path": "/api/v1",
+    "dns-resolver": "kube-dns.kube-system.svc.cluster.local",
+    "scheduler-name": "default-scheduler",
+    "sleep": 0,
+    "nginx-gw": true,
+    "nginx-svc-type": "NodePort",
+    "no-apply": false
+  },
+  "InternalServiceFilePath": "CustomFunctions",
+  "OutputPath": "experiments/05-mubench-advanced/SimulationWorkspace",
+  "WorkModelPath": "experiments/05-mubench-advanced/SimulationWorkspace/workmodel.json"
+}

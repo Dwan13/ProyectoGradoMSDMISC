@@ -1,0 +1,26 @@
+@startuml
+!define RECTANGLE class
+' Arquitectura muBench: Servicios, Monitoreo y Flujo de Datos
+
+RECTANGLE "k6 Traffic Generator" as k6
+RECTANGLE "API Gateway (nginx/istio/kong)" as gw
+RECTANGLE "Auth Service" as auth
+RECTANGLE "API Service" as api
+RECTANGLE "Data Service" as data
+RECTANGLE "Postgres DB" as db
+RECTANGLE "Prometheus" as prometheus
+RECTANGLE "Grafana" as grafana
+RECTANGLE "Kubernetes Cluster" as k8s
+
+k6 -down-> gw : HTTPS/HTTP
+k6 -down-> api : HTTP (C2/C3/C4)
+gw -down-> auth : HTTP
+api -down-> data : HTTP
+api -down-> db : SQL
+prometheus -left-> k8s : Metrics Scrape
+prometheus -left-> api : Metrics Exporter
+prometheus -left-> auth : Metrics Exporter
+prometheus -left-> data : Metrics Exporter
+grafana -left-> prometheus : Visualize
+
+@enduml

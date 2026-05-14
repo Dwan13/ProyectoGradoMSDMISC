@@ -12,10 +12,21 @@ set -euo pipefail
 ################################################################################
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROFILE_FILE="${ROOT_DIR}/scripts/s2-final-profile.env"
 RESULTS_DIR="${ROOT_DIR}/Testing/results/scaling_tests"
 K6_SCRIPT="${ROOT_DIR}/RealisticServices/k6/realistic-flow.js"
 EXPERIMENTS_FILTER="${1:-all}"
 VARIANT_FILTER="${2:-all}"
+TARGET_ENV="${TARGET_ENV:-default}"
+SCENARIO_NAMESPACE="${SCENARIO_NAMESPACE:-$([ "$TARGET_ENV" = "postgres-real" ] && echo "mubench-real" || echo "realistic")}"
+
+if [[ -f "$PROFILE_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$PROFILE_FILE"
+fi
+
+S2_C4_MODERATE_RPM="${S2_C4_MODERATE_RPM:-1200}"
+S2_C4_STRICT_RPM="${S2_C4_STRICT_RPM:-300}"
 
 mkdir -p "$RESULTS_DIR"
 
@@ -35,6 +46,7 @@ CHECK_INTERVAL=5  # segundos entre mediciones de recursos
 CPU_THRESHOLD_PERCENT=70      # % del nodo
 MEMORY_THRESHOLD_PERCENT=80   # % del nodo
 P95_THRESHOLD_MS=500          # latencia p95 máxima aceptable
+ERROR_THRESHOLD_PERCENT=5     # errores máximos aceptables salvo variantes con rate limiting intencional
 
 # Controles predefinidos (por defecto todos)
 declare -a CONTROLS=(
@@ -72,9 +84,48 @@ log_error() {
   echo -e "${RED}[✗]${NC} $*"
 }
 
+is_expected_error_variant() {
+  local control="$1"
+  local variant="$2"
+
+  case "$control/$variant" in
+    C4/moderate|C4/strict)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+kctl() {
+  if command -v microk8s >/dev/null 2>&1; then
+    microk8s kubectl "$@"
+  else
+    kubectl "$@"
+  fi
+}
+
+ensure_tls_secret() {
+  local source_ns="$1"
+  local secret_name="$2"
+  local target_ns="$3"
+
+  if kctl get secret "$secret_name" -n "$target_ns" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  kctl get secret "$secret_name" -n "$source_ns" -o json | python3 -c '
+import json,sys
+obj=json.load(sys.stdin)
+obj["metadata"]={"name":obj["metadata"]["name"],"namespace":"'"$target_ns"'"}
+print(json.dumps(obj))
+' | kctl apply -f - >/dev/null
+}
+
 get_node_resources() {
   # Retorna: "cpu_millicores memory_mb"
-  microk8s kubectl top nodes 2>/dev/null | tail -1 | awk '{
+  kctl top nodes 2>/dev/null | tail -1 | awk '{
     cpu_str=$2
     mem_str=$4
     gsub(/m$/, "", cpu_str)
@@ -86,7 +137,7 @@ get_node_resources() {
 get_namespace_resources() {
   local ns="$1"
   # Retorna: "cpu_millicores memory_mb"
-  kubectl top pods -n "$ns" 2>/dev/null | tail -n +2 | awk '{
+  kctl top pods -n "$ns" 2>/dev/null | tail -n +2 | awk '{
     cpu_m+=$(NF-1); mem_m+=$(NF)
   } END {
     gsub(/m$/, "", cpu_m); gsub(/Mi$/, "", mem_m)
@@ -190,6 +241,7 @@ run_scaling_test_for_control() {
   bash "$ROOT_DIR/scripts/run-k6-benchmark.sh" \
     --control "$control" \
     --variant "$variant" \
+    --target-env "$TARGET_ENV" \
     --vus 1 \
     --duration 60 \
     --output "$baseline_file" || baseline_k6_exit=$?
@@ -243,6 +295,7 @@ run_scaling_test_for_control() {
     bash "$ROOT_DIR/scripts/run-k6-benchmark.sh" \
       --control "$control" \
       --variant "$variant" \
+      --target-env "$TARGET_ENV" \
       --vus "$vus" \
       --duration "$DURATION_PER_STAGE" \
       --output "$test_file" || k6_exit=$?
@@ -277,14 +330,29 @@ run_scaling_test_for_control() {
     
     local cpu_percent=$((node_cpu * 100 / node_cpu_max))
     local mem_percent=$((node_mem * 100 / node_mem_max))
+    local expected_error_variant=false
+    if is_expected_error_variant "$control" "$variant"; then
+      expected_error_variant=true
+    fi
     
     echo -e "  ${BLUE}Recursos nodo:${NC} CPU=$cpu_percent%, MEM=$mem_percent%"
+
+    if (( $(echo "$errors > $ERROR_THRESHOLD_PERCENT" | bc -l) )); then
+      if [ "$expected_error_variant" = true ]; then
+        log_warn "Error rate ($errors%) esperado para $control/$variant por rate limiting"
+      else
+        log_warn "Error rate ($errors%) supera threshold ($ERROR_THRESHOLD_PERCENT%) → DETENER"
+        continue_scaling=false
+      fi
+    fi
     
     # Guardar resultado en CSV
     echo "$control,$variant,$vus,$avg_ms,$p95,$errors,$rps,$node_cpu,$node_mem" >> "$REPORT_CSV"
 
     # Decisión de continuar
-    if (( $(echo "$p95 > $P95_THRESHOLD_MS" | bc -l) )); then
+    if [ "$continue_scaling" = false ]; then
+      :
+    elif (( $(echo "$p95 > $P95_THRESHOLD_MS" | bc -l) )); then
       log_warn "p95 ($p95ms) supera threshold ($P95_THRESHOLD_MS ms) → DETENER"
       continue_scaling=false
     elif [ "$cpu_percent" -gt "$CPU_THRESHOLD_PERCENT" ]; then
@@ -293,8 +361,15 @@ run_scaling_test_for_control() {
     elif [ "$mem_percent" -gt "$MEMORY_THRESHOLD_PERCENT" ]; then
       log_warn "Memoria ($mem_percent%) supera threshold ($MEMORY_THRESHOLD_PERCENT%) → DETENER"
       continue_scaling=false
+    elif [ "$expected_error_variant" = false ] && (( $(echo "$errors > $ERROR_THRESHOLD_PERCENT" | bc -l) )); then
+      log_warn "Error rate ($errors%) supera threshold ($ERROR_THRESHOLD_PERCENT%) → DETENER"
+      continue_scaling=false
     else
-      log_success "✓ Métricas OK, escalamiento viable"
+      if [ "$expected_error_variant" = true ] && (( $(echo "$errors > $ERROR_THRESHOLD_PERCENT" | bc -l) )); then
+        log_success "✓ Métricas OK, con errores esperados por rate limiting"
+      else
+        log_success "✓ Métricas OK, escalamiento viable"
+      fi
     fi
   done
 }
@@ -306,58 +381,87 @@ run_scaling_test_for_control() {
 apply_control_state() {
   local control="$1"
   local variant="$2"
-  local NS="realistic"
+  local NS="$SCENARIO_NAMESPACE"
 
   log_info "  → Reseteando estado previo..."
 
   # Limpiar recursos de red/ingress/istio
-  microk8s kubectl delete ingress --all -n "$NS" --ignore-not-found &>/dev/null || true
-  microk8s kubectl delete gateway.networking.istio.io --all -n "$NS" --ignore-not-found &>/dev/null || true
-  microk8s kubectl delete virtualservice --all -n "$NS" --ignore-not-found &>/dev/null || true
-  microk8s kubectl delete networkpolicy --all -n "$NS" --ignore-not-found &>/dev/null || true
+  kctl delete ingress --all -n "$NS" --ignore-not-found &>/dev/null || true
+  kctl delete gateway.networking.istio.io --all -n "$NS" --ignore-not-found &>/dev/null || true
+  kctl delete virtualservice --all -n "$NS" --ignore-not-found &>/dev/null || true
+  kctl delete networkpolicy --all -n "$NS" --ignore-not-found &>/dev/null || true
 
   # Resetear rate limit a neutral
-  microk8s kubectl set env deployment/api-service -n "$NS" \
+  kctl set env deployment/api-service -n "$NS" \
     RATE_LIMIT_ENABLED=false RATE_LIMIT_RPM=600 &>/dev/null || true
 
   # Resetar label istio-injection
-  microk8s kubectl label namespace "$NS" istio-injection=disabled --overwrite &>/dev/null || true
+  kctl label namespace "$NS" istio-injection=disabled --overwrite &>/dev/null || true
+
+  if [ "$TARGET_ENV" = "postgres-real" ]; then
+    kctl apply -f "$ROOT_DIR/RealisticServices/k8s/03-services-real.yaml" &>/dev/null || true
+  fi
 
   log_info "  → Aplicando variante $control/$variant..."
 
   case "$control" in
     C1)
-      case "$variant" in
-        baseline) microk8s kubectl apply -f "$ROOT_DIR/RealisticServices/k8s/07-c1-ingress-gateway.yaml" &>/dev/null ;;
-        istio)    microk8s kubectl apply -f "$ROOT_DIR/experiments/01-api-gateway-realistic/istio/01-services-istio.yaml" &>/dev/null ;;
-        kong)     microk8s kubectl apply -f "$ROOT_DIR/experiments/01-api-gateway-realistic/kong/01-services-kong.yaml" &>/dev/null ;;
-      esac
+      if [ "$TARGET_ENV" = "postgres-real" ]; then
+        ensure_tls_secret realistic mubench-tls "$NS"
+        ensure_tls_secret realistic realistic-tls "$NS"
+        case "$variant" in
+          baseline) kctl apply -f "$ROOT_DIR/RealisticServices/k8s/07-c1-ingress-gateway-real.yaml" &>/dev/null ;;
+          istio)    kctl apply -f "$ROOT_DIR/RealisticServices/k8s/07-c1-istio-real.yaml" &>/dev/null ;;
+          kong)     kctl apply -f "$ROOT_DIR/RealisticServices/k8s/07-c1-kong-real.yaml" &>/dev/null ;;
+        esac
+      else
+        case "$variant" in
+          baseline) kctl apply -f "$ROOT_DIR/RealisticServices/k8s/07-c1-ingress-gateway.yaml" &>/dev/null ;;
+          istio)    kctl apply -f "$ROOT_DIR/experiments/01-api-gateway-realistic/istio/01-services-istio.yaml" &>/dev/null ;;
+          kong)     kctl apply -f "$ROOT_DIR/experiments/01-api-gateway-realistic/kong/01-services-kong.yaml" &>/dev/null ;;
+        esac
+      fi
       ;;
     C2)
-      local manifest_dir="$ROOT_DIR/experiments/02-mtls-service-mesh-realistic/$variant"
-      if [ -d "$manifest_dir" ]; then
-        for f in "$manifest_dir"/*.yaml; do
-          [ -f "$f" ] && microk8s kubectl apply -f "$f" &>/dev/null || true
-        done
+      if [ "$TARGET_ENV" = "postgres-real" ]; then
+        case "$variant" in
+          baseline) kctl apply -f "$ROOT_DIR/RealisticServices/k8s/03-services-real.yaml" &>/dev/null ;;
+          istio-mtls) kctl apply -f "$ROOT_DIR/RealisticServices/k8s/02-services-istio-mtls-real.yaml" &>/dev/null ;;
+          linkerd-mtls) kctl apply -f "$ROOT_DIR/RealisticServices/k8s/02-services-linkerd-mtls-real.yaml" &>/dev/null ;;
+        esac
+      else
+        local manifest_dir="$ROOT_DIR/experiments/02-mtls-service-mesh-realistic/$variant"
+        if [ -d "$manifest_dir" ]; then
+          for f in "$manifest_dir"/*.yaml; do
+            [ -f "$f" ] && kctl apply -f "$f" &>/dev/null || true
+          done
+        fi
       fi
       ;;
     C3)
-      case "$variant" in
-        basic)  microk8s kubectl apply -f "$ROOT_DIR/RealisticServices/k8s/08-c3-networkpolicy.yaml" &>/dev/null ;;
-        strict) microk8s kubectl apply -f "$ROOT_DIR/RealisticServices/k8s/08-c3-networkpolicy-strict.yaml" &>/dev/null ;;
-      esac
+      if [ "$TARGET_ENV" = "postgres-real" ]; then
+        case "$variant" in
+          basic)  kctl apply -f "$ROOT_DIR/RealisticServices/k8s/08-c3-networkpolicy-real.yaml" &>/dev/null ;;
+          strict) kctl apply -f "$ROOT_DIR/RealisticServices/k8s/08-c3-networkpolicy-strict-real.yaml" &>/dev/null ;;
+        esac
+      else
+        case "$variant" in
+          basic)  kctl apply -f "$ROOT_DIR/RealisticServices/k8s/08-c3-networkpolicy.yaml" &>/dev/null ;;
+          strict) kctl apply -f "$ROOT_DIR/RealisticServices/k8s/08-c3-networkpolicy-strict.yaml" &>/dev/null ;;
+        esac
+      fi
       ;;
     C4)
       case "$variant" in
         moderate)
-          microk8s kubectl set env deployment/api-service -n "$NS" \
-            RATE_LIMIT_ENABLED=true RATE_LIMIT_RPM=120 &>/dev/null
-          microk8s kubectl rollout restart deployment/api-service -n "$NS" &>/dev/null
+          kctl set env deployment/api-service -n "$NS" \
+            RATE_LIMIT_ENABLED=true RATE_LIMIT_RPM="$S2_C4_MODERATE_RPM" &>/dev/null
+          kctl rollout restart deployment/api-service -n "$NS" &>/dev/null
           ;;
         strict)
-          microk8s kubectl set env deployment/api-service -n "$NS" \
-            RATE_LIMIT_ENABLED=true RATE_LIMIT_RPM=20 &>/dev/null
-          microk8s kubectl rollout restart deployment/api-service -n "$NS" &>/dev/null
+          kctl set env deployment/api-service -n "$NS" \
+            RATE_LIMIT_ENABLED=true RATE_LIMIT_RPM="$S2_C4_STRICT_RPM" &>/dev/null
+          kctl rollout restart deployment/api-service -n "$NS" &>/dev/null
           ;;
       esac
       ;;
@@ -365,7 +469,7 @@ apply_control_state() {
 
   # Esperar rollout de los servicios principales
   for dep in auth-service api-service data-service; do
-    microk8s kubectl rollout status deployment/"$dep" -n "$NS" --timeout=120s &>/dev/null || true
+    kctl rollout status deployment/"$dep" -n "$NS" --timeout=120s &>/dev/null || true
   done
 
   sleep 3  # Breve pausa para estabilizar
@@ -376,11 +480,12 @@ apply_control_state() {
 ################################################################################
 
 # Encabezado del report CSV
-REPORT_CSV="$RESULTS_DIR/scaling-report_$(date +%Y%m%d).csv"
+REPORT_CSV="$RESULTS_DIR/scaling-report_${TARGET_ENV}_$(date +%Y%m%d).csv"
 echo "control,variant,vus,avg_ms,p95_ms,err_pct,rps,cpu_mcores,mem_mib" > "$REPORT_CSV"
 
 log_info "Iniciando test de escalabilidad progresiva"
 log_info "Resultados: $RESULTS_DIR"
+log_info "Entorno objetivo: $TARGET_ENV (namespace: $SCENARIO_NAMESPACE)"
 log_info "Umbrales: CPU<$CPU_THRESHOLD_PERCENT%, MEM<$MEMORY_THRESHOLD_PERCENT%, p95<${P95_THRESHOLD_MS}ms"
 
 for control_variant in "${CONTROLS[@]}"; do

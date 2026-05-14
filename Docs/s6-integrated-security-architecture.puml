@@ -1,0 +1,83 @@
+@startuml
+skinparam shadowing false
+skinparam backgroundColor #FAFAFA
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam ArrowColor #2F4F4F
+skinparam DefaultTextAlignment center
+
+left to right direction
+
+title S6 Integrated Architecture for Dual-Master Defense
+
+actor "Legitimate User" as User
+actor "Adversarial Client" as Attacker
+
+cloud "Edge Zone" {
+  component "C1 Gateway Layer\nNGINX / Istio GW / Kong" as Gateway
+  component "C4 Rate Limiter\nIngress annotations\nmoderate/strict" as RL
+}
+
+cloud "Service Trust Zone" {
+  component "C2 Service Mesh\nIstio mTLS or Linkerd mTLS" as Mesh
+
+  node "realistic namespace" {
+    component "auth-service\nPOST /login\nJWT issue" as Auth
+    component "api-service\nGET /profile\nGET /users" as Api
+    component "data-service\nDB access" as Data
+    database "PostgreSQL\napp_users" as DB
+  }
+
+  component "C3 Network Policies\nbasic/moderate/strict" as NetPol
+}
+
+cloud "Observability and Analysis Zone" {
+  component "k6 S6 Flow\nnormal + attack" as K6
+  component "Prometheus\nCPU/Mem scrape" as Prom
+  component "S6 Analyzer\n6 metrics + security traces" as Analyzer
+  artifact "S6 Raw NDJSON\nrandomized_campaigns" as Raw
+  artifact "S6 Integrated CSV\nscaling_tests" as Csv
+}
+
+User --> Gateway : HTTPS requests
+Attacker --> Gateway : attack probes\ninvalid creds / unauth access
+
+Gateway --> RL : enforce edge rate limits
+RL --> Auth : allow/limit
+RL --> Api : allow/limit
+
+Gateway --> Mesh : routed traffic
+Mesh --> Auth : mTLS S2S
+Mesh --> Api : mTLS S2S
+Api --> Data : authorized call
+Data --> DB : SQL read/list
+
+NetPol -[hidden]-> Auth
+NetPol -[hidden]-> Api
+NetPol -[hidden]-> Data
+NetPol .. Auth : ingress/egress rules
+NetPol .. Api : ingress/egress rules
+NetPol .. Data : ingress/egress rules
+
+K6 --> Gateway : scenario execution\nVUs 1/5/10/20\nmode normal/attack
+Prom --> Auth : resource telemetry
+Prom --> Api : resource telemetry
+Prom --> Data : resource telemetry
+Prom --> DB : resource telemetry
+
+K6 --> Raw : per-run NDJSON output
+Prom --> Analyzer : query_range data
+Raw --> Analyzer : latency/error/rps\nlogin/users/JWT traces
+Analyzer --> Csv : integrated metrics output
+
+note bottom of Analyzer
+S6 integrated output includes:
+- avg_ms, p95_ms, err_pct, rps
+- cpu_mcores, mem_mib
+- login_ok, users_ok
+- jwt_trace_events, unique_jwt_fp
+- profile_db_latency_ms_avg
+- users_db_latency_ms_avg
+end note
+
+@enduml

@@ -1,0 +1,11 @@
+@startuml
+start
+:Start k6 Traffic Generator;
+:Send traffic to API Gateway (nginx/istio/kong) or direct to API Service;
+:API Gateway routes to Auth Service and API Service;
+:API Service queries Data Service and Postgres DB;
+:Prometheus scrapes metrics from all services;
+:Post-processing scripts merge k6 and Prometheus data;
+:Statistical analysis (TOST, ANOVA, solidness);
+stop
+@enduml

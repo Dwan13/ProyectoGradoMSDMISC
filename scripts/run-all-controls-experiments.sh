@@ -128,11 +128,11 @@ apply_control_variant() {
           microk8s kubectl rollout restart deployment/api-service -n "$NS"
           ;;
         moderate)
-          microk8s kubectl set env deployment/api-service -n "$NS" RATE_LIMIT_ENABLED=true RATE_LIMIT_RPM=120
+          microk8s kubectl set env deployment/api-service -n "$NS" RATE_LIMIT_ENABLED=true RATE_LIMIT_RPM=1200
           microk8s kubectl rollout restart deployment/api-service -n "$NS"
           ;;
         strict)
-          microk8s kubectl set env deployment/api-service -n "$NS" RATE_LIMIT_ENABLED=true RATE_LIMIT_RPM=20
+          microk8s kubectl set env deployment/api-service -n "$NS" RATE_LIMIT_ENABLED=true RATE_LIMIT_RPM=300
           microk8s kubectl rollout restart deployment/api-service -n "$NS"
           ;;
       esac

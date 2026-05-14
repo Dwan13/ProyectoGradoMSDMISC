@@ -4,13 +4,16 @@ set -euo pipefail
 ################################################################################
 # graceful-startup.sh
 #
-# Script para levantar la máquina después del apagado
+# Script para levantar la maquina despues del apagado
 # - Levanta MicroK8s
-# - Verifica cluster status
-# - Valida servicios
-# - Prepara para tests
+# - Restaura el ultimo escenario (o permite elegir uno)
+# - Ejecuta el setup del escenario seleccionado
+# - Verifica estado final para continuar pruebas
 #
-# Uso: bash scripts/graceful-startup.sh
+# Uso:
+#   bash scripts/graceful-startup.sh
+#   bash scripts/graceful-startup.sh --scenario s2
+#   bash scripts/graceful-startup.sh --scenario last
 ################################################################################
 
 RED='\033[0;31m'
@@ -24,6 +27,147 @@ log_success() { echo -e "${GREEN}[✓]${NC} $*"; }
 log_error() { echo -e "${RED}[✗]${NC} $*"; }
 log_warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+STATE_FILE="${ROOT_DIR}/.mubench-state/last-session.env"
+
+SCENARIO=""
+AUTO_RESTORE=true
+ASSUME_YES=false
+
+usage() {
+  cat << EOF
+Uso: bash scripts/graceful-startup.sh [opciones]
+
+Opciones:
+  --scenario <s1|s2|s3|s4|last>  Escenario a levantar
+  --no-restore                    No usar snapshot previo
+  --yes                           Omitir confirmacion antes de aplicar setup
+  -h, --help                      Mostrar ayuda
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --scenario)
+      SCENARIO="$2"
+      shift 2
+      ;;
+    --no-restore)
+      AUTO_RESTORE=false
+      shift
+      ;;
+    --yes)
+      ASSUME_YES=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Opcion desconocida: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+scenario_menu() {
+  echo ""
+  echo "Selecciona escenario a levantar:"
+  echo "  1) s1 - Realistic baseline"
+  echo "  2) s2 - Postgres real"
+  echo "  3) s3 - MuBench advanced"
+  echo "  4) s4 - Semantic equivalent"
+  echo "  5) last - Usar ultimo escenario guardado"
+  read -r -p "Opcion [1-5]: " opt
+  case "$opt" in
+    1) SCENARIO="s1" ;;
+    2) SCENARIO="s2" ;;
+    3) SCENARIO="s3" ;;
+    4) SCENARIO="s4" ;;
+    5) SCENARIO="last" ;;
+    *)
+      echo "Opcion invalida"
+      exit 1
+      ;;
+  esac
+}
+
+load_last_scenario() {
+  if [[ -f "$STATE_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$STATE_FILE"
+    if [[ -n "${LAST_SCENARIO:-}" ]] && [[ "${LAST_SCENARIO}" =~ ^s[1-4]$ ]]; then
+      SCENARIO="$LAST_SCENARIO"
+      log_info "Escenario restaurado desde snapshot: $SCENARIO"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+kctl() {
+  if command -v microk8s >/dev/null 2>&1; then
+    microk8s kubectl "$@"
+  else
+    kubectl "$@"
+  fi
+}
+
+run_scenario_setup() {
+  local setup_script=""
+  case "$SCENARIO" in
+    s1)
+      log_info "Levantando S1 (realistic baseline)..."
+      setup_script="$SCRIPT_DIR/deploy-realistic-stack.sh"
+      ;;
+    s2)
+      log_info "Levantando S2 (postgres real)..."
+      setup_script="$SCRIPT_DIR/setup-postgres-real-scenario.sh"
+      ;;
+    s3)
+      log_info "Levantando S3 (mubench advanced)..."
+      setup_script="$SCRIPT_DIR/setup-scenario3-mubench-advanced.sh"
+      ;;
+    s4)
+      log_info "Levantando S4 (semantic equivalent)..."
+      setup_script="$SCRIPT_DIR/setup-scenario4-semantic-equivalent.sh"
+      ;;
+    *)
+      log_error "Escenario invalido: $SCENARIO"
+      exit 1
+      ;;
+  esac
+
+  if [[ ! -x "$setup_script" ]]; then
+    if [[ -f "$setup_script" ]]; then
+      chmod +x "$setup_script" || true
+    fi
+  fi
+  if [[ ! -f "$setup_script" ]]; then
+    log_error "No se encontro script de setup: $setup_script"
+    exit 1
+  fi
+
+  bash "$setup_script"
+}
+
+confirm_startup_plan() {
+  if [[ "$ASSUME_YES" == "true" ]]; then
+    return 0
+  fi
+
+  echo ""
+  log_warn "Se aplicara setup del escenario '${SCENARIO}' sobre el cluster actual"
+  read -r -p "Escribe ENCENDER para continuar: " confirm
+  if [[ "$confirm" != "ENCENDER" ]]; then
+    log_warn "Operacion cancelada por el usuario"
+    exit 1
+  fi
+}
+
 banner() {
   echo ""
   echo -e "${YELLOW}╔════════════════════════════════════════════════════════╗${NC}"
@@ -34,11 +178,35 @@ banner() {
 
 banner
 
+if [[ -z "$SCENARIO" ]]; then
+  if [[ "$AUTO_RESTORE" == "true" ]] && load_last_scenario; then
+    :
+  else
+    scenario_menu
+  fi
+fi
+
+if [[ "$SCENARIO" == "last" ]]; then
+  if [[ "$AUTO_RESTORE" != "true" ]]; then
+    log_error "--no-restore no permite usar --scenario last"
+    exit 1
+  fi
+  if ! load_last_scenario; then
+    log_warn "No hay escenario previo valido en $STATE_FILE"
+    scenario_menu
+  fi
+fi
+
+if [[ ! "$SCENARIO" =~ ^s[1-4]$ ]]; then
+  log_error "Escenario invalido: $SCENARIO"
+  exit 1
+fi
+
 ################################################################################
 # Step 1: Verificar MicroK8s instalado
 ################################################################################
 
-log_info "Paso 1/5: Verificando MicroK8s..."
+log_info "Paso 1/6: Verificando MicroK8s..."
 
 if ! command -v microk8s &> /dev/null; then
   log_error "MicroK8s no está instalado"
@@ -53,7 +221,7 @@ echo ""
 # Step 2: Levantar MicroK8s
 ################################################################################
 
-log_info "Paso 2/5: Levantando MicroK8s..."
+log_info "Paso 2/6: Levantando MicroK8s..."
 
 microk8s start || log_warn "MicroK8s podría estar en recuperación..."
 
@@ -61,15 +229,21 @@ log_info "Esperando a que MicroK8s esté ready (máx 60s)..."
 
 if ! microk8s status --wait-ready --timeout=300 &>/dev/null 2>&1; then
   log_warn "MicroK8s tardando, probando manualmente..."
+  local_ready=false
   for i in {1..30}; do
     if microk8s status &>/dev/null 2>&1; then
       log_success "MicroK8s está ready"
+      local_ready=true
       break
     fi
     echo -n "."
     sleep 2
   done
   echo ""
+  if [[ "$local_ready" != "true" ]]; then
+    log_error "MicroK8s no quedo ready dentro del timeout"
+    exit 1
+  fi
 else
   log_success "MicroK8s ready"
 fi
@@ -80,10 +254,10 @@ echo ""
 # Step 3: Validar cluster
 ################################################################################
 
-log_info "Paso 3/5: Validando cluster..."
+log_info "Paso 3/6: Validando cluster..."
 
 # Test kubectl
-if ! microk8s kubectl cluster-info &>/dev/null 2>&1; then
+if ! kctl cluster-info &>/dev/null 2>&1; then
   log_error "Cluster no responde"
   exit 1
 fi
@@ -92,7 +266,7 @@ log_success "Cluster operativo"
 
 # Ver nodes
 log_info "Nodos en cluster:"
-microk8s kubectl get nodes || true
+kctl get nodes || true
 
 echo ""
 
@@ -100,45 +274,29 @@ echo ""
 # Step 4: Verificar namespaces
 ################################################################################
 
-log_info "Paso 4/5: Verificando namespaces..."
+log_info "Paso 4/6: Verificando namespace base..."
 
 # Verificar que namespace realistic existe
-if ! microk8s kubectl get namespace realistic &>/dev/null 2>&1; then
+if ! kctl get namespace realistic &>/dev/null 2>&1; then
   log_warn "Namespace 'realistic' no existe, recreando..."
-  microk8s kubectl create namespace realistic
+  kctl create namespace realistic
 fi
 
 log_success "Namespace 'realistic' disponible"
 
 # Ver status de servicios
 log_info "Servicios en namespace 'realistic':"
-microk8s kubectl get svc -n realistic 2>/dev/null || log_warn "Sin servicios aún"
+kctl get svc -n realistic 2>/dev/null || log_warn "Sin servicios aun"
 
 echo ""
 
 ################################################################################
-# Step 5: Re-escalar deployments
+# Step 5: Levantar escenario seleccionado
 ################################################################################
 
-log_info "Paso 5/6: Levantando servicios realistas..."
-
-if microk8s kubectl get deployment -n realistic &>/dev/null 2>&1; then
-  DEPS=$(microk8s kubectl get deployment -n realistic --no-headers 2>/dev/null | awk '{print $1}' | tr '\n' ' ')
-  if [ -n "$DEPS" ]; then
-    log_info "  → Escalando deployments a 1 réplica: $DEPS"
-    microk8s kubectl scale deployment $DEPS -n realistic --replicas=1 2>/dev/null || true
-
-    log_info "  → Esperando que los pods estén ready..."
-    for dep in $DEPS; do
-      microk8s kubectl rollout status deployment/"$dep" -n realistic --timeout=120s 2>/dev/null \
-        && log_success "  ✓ $dep ready" || log_warn "  ! $dep tardó más de lo esperado"
-    done
-  else
-    log_warn "No hay deployments. Ejecuta el primer test y se desplegarán automáticamente."
-  fi
-else
-  log_warn "No hay deployments en namespace 'realistic'. Ejecuta run-all-controls-experiments.sh."
-fi
+log_info "Paso 5/6: Ejecutando setup de escenario (${SCENARIO})..."
+confirm_startup_plan
+run_scenario_setup
 
 echo ""
 
@@ -152,24 +310,33 @@ cat << EOF
 
 ${GREEN}✓ STARTUP COMPLETADO${NC}
 
+Escenario activo: ${SCENARIO}
+
 Estado del Cluster:
   • MicroK8s: $(microk8s status 2>/dev/null | grep -i microk8s | head -1 || echo 'OK')
-  • Namespaces: $(microk8s kubectl get ns --no-headers 2>/dev/null | wc -l) encontrados
-  • Nodos: $(microk8s kubectl get nodes -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | wc -w) ready
+  • Namespaces: $(kctl get ns --no-headers 2>/dev/null | wc -l) encontrados
+  • Nodos: $(kctl get nodes -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | wc -w) ready
 
-Servicios Realistas:
+Servicios:
 EOF
 
-if microk8s kubectl get pods -n realistic &>/dev/null 2>&1; then
-  echo "  • Pods en 'realistic': $(microk8s kubectl get pods -n realistic --no-headers 2>/dev/null | wc -l)"
+case "$SCENARIO" in
+  s1) ACTIVE_NS="realistic" ;;
+  s2) ACTIVE_NS="mubench-real" ;;
+  s3) ACTIVE_NS="mubench-advanced" ;;
+  s4) ACTIVE_NS="mubench-s4" ;;
+esac
+
+if kctl get pods -n "$ACTIVE_NS" &>/dev/null 2>&1; then
+  echo "  • Pods en '$ACTIVE_NS': $(kctl get pods -n "$ACTIVE_NS" --no-headers 2>/dev/null | wc -l)"
   
   # Mostrar si hay pods stuck
-  stuck_pods=$(microk8s kubectl get pods -n realistic --field-selector=status.phase!=Running --no-headers 2>/dev/null | wc -l)
+  stuck_pods=$(kctl get pods -n "$ACTIVE_NS" --field-selector=status.phase!=Running --no-headers 2>/dev/null | wc -l)
   if [ "$stuck_pods" -gt 0 ]; then
     echo -e "  ${YELLOW}! Pods en estado no-Running: $stuck_pods${NC}"
   fi
 else
-  echo "  • No hay pods aún (espera a que se desplieguen en primer test)"
+  echo "  • Sin pods visibles en '$ACTIVE_NS'"
 fi
 
 cat << EOF
@@ -190,9 +357,9 @@ Próximos pasos:
 
 Dashboards disponibles:
   • Prometheus: http://localhost:30000
-  • Grafana:    http://localhost:30001 (admin/prom-operator)
+  • Grafana:    http://localhost:30030
 
-${YELLOW}Nota:${NC} Los pods se desplegarán cuando ejecutes el primer test.
+${YELLOW}Nota:${NC} Puedes reiniciar con ultimo escenario usando: --scenario last
 
 EOF
 

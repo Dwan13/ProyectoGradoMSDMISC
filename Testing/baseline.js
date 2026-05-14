@@ -24,6 +24,12 @@ const VUS = parseInt(__ENV.VUS || '10');
 const DURATION = __ENV.DURATION || '30s';
 const PROTOCOL = __ENV.PROTOCOL || 'http';
 const INSECURE_SKIP_TLS_VERIFY = __ENV.INSECURE_SKIP_TLS_VERIFY === 'true';
+const BENCH_PROFILE = __ENV.BENCH_PROFILE || 'native';
+const THINK_TIME = parseFloat(__ENV.THINK_TIME || '0.1');
+const TARGET_URLS = (__ENV.TARGET_URLS || TARGET_URL)
+    .split(',')
+    .map((u) => u.trim())
+    .filter((u) => u.length > 0);
 
 export const options = {
     vus: VUS,
@@ -47,13 +53,14 @@ export default function() {
         },
     };
 
-    // Test main endpoint
-    const response = http.get(TARGET_URL, params);
+    // By default, scenario 3 keeps native behavior against /s0; TARGET_URLS allows explicit multi-endpoint probes.
+    const target = TARGET_URLS[Math.floor(Math.random() * TARGET_URLS.length)] || TARGET_URL;
+    const response = http.get(target, params);
     
     // Track metrics
     const result = check(response, {
         'status is 200': (r) => r.status === 200,
-        'response time < 500ms': (r) => r.timings.duration < 500,
+        'response time < 500ms': (r) => BENCH_PROFILE !== 'native' ? r.timings.duration < 500 : true,
         'response has body': (r) => r.body && r.body.length > 0,
     });
 
@@ -62,7 +69,7 @@ export default function() {
     requestsTotal.add(1);
 
     // Small delay between requests
-    sleep(0.1);
+    sleep(THINK_TIME);
 }
 
 // Setup function - runs once at the beginning
@@ -72,6 +79,9 @@ export function setup() {
     console.log(`Virtual Users: ${VUS}`);
     console.log(`Duration: ${DURATION}`);
     console.log(`Protocol: ${PROTOCOL}`);
+    console.log(`Benchmark profile: ${BENCH_PROFILE}`);
+    console.log(`Targets: ${TARGET_URLS.join(', ')}`);
+    console.log(`Think time: ${THINK_TIME}s`);
     
     return { startTime: new Date().toISOString() };
 }

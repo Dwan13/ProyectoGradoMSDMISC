@@ -10,10 +10,11 @@ bash scripts/graceful-shutdown.sh
 
 **Qué hace** (automáticamente):
 - ✓ Detiene tests en ejecución (si los hay)
-- ✓ Elimina todos los pods Kubernetes
-- ✓ Escala deployments a 0
+- ✓ Preserva recursos Kubernetes (no borra pods/PVs de forma agresiva)
+- ✓ Escala deployments a 0 (opcional)
 - ✓ Detiene MicroK8s gracefully
 - ✓ Preserva todos tus datos
+- ✓ Solicita confirmación explícita antes de ejecutar acciones sensibles
 
 **Tiempo**: 30-60 segundos
 
@@ -22,8 +23,8 @@ bash scripts/graceful-shutdown.sh
 [INFO] Paso 1/5: Verificando procesos en ejecución...
 [✓] Procesos limpios
 
-[INFO] Paso 2/5: Limpiando recursos Kubernetes...
-[✓] Recursos Kubernetes limpiados
+[INFO] Paso 2/5: Preservando recursos Kubernetes...
+[✓] Recursos preservados
 
 [INFO] Paso 3/5: Deteniendo servicios...
 [✓] Servicios detenidos
@@ -55,22 +56,23 @@ bash scripts/graceful-startup.sh
 - ✓ Valida cluster status
 - ✓ Verifica namespaces y volúmenes
 - ✓ Prepara sistema para tests
+- ✓ Solicita confirmación explícita antes de aplicar setup de escenario
 
 **Tiempo**: 1-2 minutos (dependiendo de recovery)
 
 **Output esperado**:
 ```
-[INFO] Paso 1/5: Verificando MicroK8s...
+[INFO] Paso 1/6: Verificando MicroK8s...
 [✓] MicroK8s encontrado
 
-[INFO] Paso 2/5: Levantando MicroK8s...
+[INFO] Paso 2/6: Levantando MicroK8s...
 [INFO] Esperando a que MicroK8s esté ready (máx 60s)...
 [✓] MicroK8s ready
 
-[INFO] Paso 3/5: Validando cluster...
+[INFO] Paso 3/6: Validando cluster...
 [✓] Cluster operativo
 
-[INFO] Paso 4/5: Verificando namespaces...
+[INFO] Paso 4/6: Verificando namespaces...
 [✓] Namespace 'realistic' disponible
 
 [✓] STARTUP COMPLETADO
@@ -119,8 +121,9 @@ shutdown -h now  # o cerrar WSL
 - ✅ Mata procesos gracefully (no fuerza)
 - ✅ Espera a que se terminen (máx 60s)
 - ✅ Preserva todos los datos (volúmenes de Docker)
-- ✅ Limpia pods fantasma
+- ✅ Evita limpieza destructiva de recursos
 - ✅ Apaga MicroK8s correctamente
+- ✅ Requiere confirmación explícita (`APAGAR`), o `--yes`
 
 ### Graceful Startup:
 - ✅ Verifica que MicroK8s esté instalado
@@ -129,6 +132,7 @@ shutdown -h now  # o cerrar WSL
 - ✅ Valida cluster status
 - ✅ Muestra información útil
 - ✅ Listo para tests inmediatamente
+- ✅ Requiere confirmación explícita (`ENCENDER`), o `--yes`
 
 ---
 
@@ -193,12 +197,12 @@ kubectl delete pod -n realistic --all --grace-period=0 --force
 
 Antes de apagar:
 ```bash
-cd ~/muBench && bash scripts/graceful-shutdown.sh
+cd ~/muBench && bash scripts/graceful-shutdown.sh --scenario s2
 ```
 
 Después de encender:
 ```bash
-cd ~/muBench && bash scripts/graceful-startup.sh && bash scripts/run-scaling-tests.sh
+cd ~/muBench && bash scripts/graceful-startup.sh --scenario last && bash scripts/run-scaling-tests.sh
 ```
 
 ---

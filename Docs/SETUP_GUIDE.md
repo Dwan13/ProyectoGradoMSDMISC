@@ -603,6 +603,7 @@ spec:
    - Latencia: ~19.34ms (p95)
    - Checks: 100% (cliente respeta límite a 1 VU)
    - Throttling: Cliente es lento → no alcanza límite
+  - Bajo 5/10/20 VUs puede empezar a devolver 429 si la tasa agregada supera 120 RPM; eso es coherente con el control y no indica fallo del benchmark.
 
 3. **C4 strict**: Rate limit 20 RPM (~0.33 req/s)
    ```bash
@@ -902,7 +903,7 @@ bash scripts/run-scaling-tests.sh C2 istio-mtls
 - p95 latency > 500ms
 - CPU > 70%
 - Memoria > 80%
-- Error rate > 5% (excepto C4 strict)
+- Error rate > 5% (excepto C4 moderate/strict cuando el rate limiting es el comportamiento esperado)
 
 **Output de ejemplo**:
 ```
@@ -1013,14 +1014,14 @@ curl -v http://localhost:30084/login \
 ### Problema: "k6 threshold failures (checks < 95%)"
 
 **Causa**:
-- Rate limiting activo bloqueando requests (C4 strict es intencional)
+- Rate limiting activo bloqueando requests (C4 moderate/strict puede ser intencional según la carga)
 - Servicio inestable
 - Smoke gate no funcionó
 
 **Solución**:
 ```bash
-# Verificar que es intencional (C4 strict)
-# Si no es C4 strict, verificar servicio:
+# Verificar que es intencional (C4 moderate/strict)
+# Si no es rate limiting esperado, verificar servicio:
 kubectl logs -n realistic deployment/api-service --tail=100
 
 # Reiniciar si es necesario
