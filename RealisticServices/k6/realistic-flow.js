@@ -131,6 +131,8 @@ function listUsers(token) {
 }
 
 function runAttackProbes() {
+  let blockedCount = 0;
+
   const badLogin = http.post(
     `${AUTH_BASE}/login`,
     JSON.stringify({ username: 'demo', password: 'wrong-password' }),
@@ -143,13 +145,12 @@ function runAttackProbes() {
   });
   attackVectorAttempts.add(1, { security_mode: SECURITY_MODE, vector: 'unauth_users' });
 
-  const blocked = [badLogin.status, unauthUsers.status].filter((s) => s === 401 || s === 403 || s === 429).length;
-  attackBlockedTotal.add(blocked, { security_mode: SECURITY_MODE });
-
   if ([401, 403, 429].includes(badLogin.status)) {
+    blockedCount += 1;
     attackVectorBlocked.add(1, { security_mode: SECURITY_MODE, vector: 'bad_login' });
   }
   if ([401, 403, 429].includes(unauthUsers.status)) {
+    blockedCount += 1;
     attackVectorBlocked.add(1, { security_mode: SECURITY_MODE, vector: 'unauth_users' });
   }
 
@@ -162,6 +163,7 @@ function runAttackProbes() {
   });
 
   if (ATTACK_PROFILE !== 'advanced') {
+    attackBlockedTotal.add(blockedCount, { security_mode: SECURITY_MODE });
     return;
   }
 
@@ -171,6 +173,7 @@ function runAttackProbes() {
   });
   attackVectorAttempts.add(1, { security_mode: SECURITY_MODE, vector: 'tampered_bearer' });
   if ([401, 403, 429].includes(tamperedTokenProfile.status)) {
+    blockedCount += 1;
     attackVectorBlocked.add(1, { security_mode: SECURITY_MODE, vector: 'tampered_bearer' });
   }
 
@@ -184,6 +187,7 @@ function runAttackProbes() {
   });
   attackVectorAttempts.add(1, { security_mode: SECURITY_MODE, vector: 'malformed_bearer' });
   if ([401, 403, 429].includes(malformedBearer.status)) {
+    blockedCount += 1;
     attackVectorBlocked.add(1, { security_mode: SECURITY_MODE, vector: 'malformed_bearer' });
   }
 
@@ -207,6 +211,7 @@ function runAttackProbes() {
     });
     attackVectorAttempts.add(1, { security_mode: SECURITY_MODE, vector: 'xff_spoof_chain' });
     if ([401, 403, 429].includes(spoofedReq.status)) {
+      blockedCount += 1;
       attackVectorBlocked.add(1, { security_mode: SECURITY_MODE, vector: 'xff_spoof_chain' });
     }
 
@@ -214,6 +219,8 @@ function runAttackProbes() {
       'attack xff-spoof blocked': (r) => [401, 403, 429].includes(r.status),
     });
   }
+
+  attackBlockedTotal.add(blockedCount, { security_mode: SECURITY_MODE });
 }
 
 export default function () {

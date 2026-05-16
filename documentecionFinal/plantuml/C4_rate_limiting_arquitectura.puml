@@ -1,0 +1,54 @@
+@startuml
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam ArrowColor #2F4F4F
+skinparam DefaultTextAlignment center
+
+left to right direction
+
+title C4 - Arquitectura Rate Limiting S2 (policy en NGINX Ingress)
+
+actor "k6 S2 runner" as k6
+
+cloud "Edge Layer" {
+  component "NGINX Ingress\n(realistic-gateway)" as gw
+  component "Rate Limiter" as rl
+}
+
+node "Namespace mubench-real" {
+  component "auth-service" as auth
+  component "api-service" as api
+  component "data-service" as data
+  database "postgres" as db
+}
+
+k6 --> auth : HTTP NodePort 30184 (/login)
+k6 --> api : HTTP NodePort 30181 (/profile,/users)
+
+gw --> rl : evaluacion por tasa (rps/rpm)
+rl --> auth : permitido o 429
+rl --> api : permitido o 429
+
+api --> data : HTTP 8080
+data --> db : TCP 5432
+
+note right of rl
+C4/baseline:
+- sin limite
+
+C4/moderate:
+- ~1200 rpm (20 rps)
+- afecta carga alta
+
+C4/strict:
+- ~300 rpm (5 rps)
+- puede generar 429 si el trafico entra por ingress
+
+Nota S2 final:
+- La politica se configura en NGINX Ingress
+- El benchmark se ejecuta via NodePort HTTP
+end note
+
+@enduml

@@ -1,0 +1,147 @@
+
+\chapter{Resultados}
+\label{cap:resultados}
+
+En este capítulo se presentan de manera sistemática y objetiva los resultados obtenidos en la evaluación comparativa de controles de seguridad en arquitecturas de microservicios, siguiendo el diseño experimental descrito en capítulos previos. El objetivo es exponer los datos recolectados para cada control, variante y nivel de carga, sin realizar aún interpretaciones ni análisis causal, los cuales se desarrollarán en el capítulo siguiente.
+
+\section{Presentación de resultados}
+
+La experimentación consistió en la ejecución de un diseño factorial completo, evaluando cuatro controles de seguridad (API Gateway, mTLS, NetworkPolicy y Rate Limiting), cada uno con tres variantes tecnológicas, bajo cuatro niveles de carga (VUS: 1, 5, 10, 20) y ocho réplicas por celda experimental. Se recolectaron métricas de desempeño (latencia promedio, latencia p95, porcentaje de error, throughput, uso de CPU y memoria) para cada combinación.
+
+En las siguientes tablas se presentan los resultados agregados (media por celda) para cada control y sus variantes. Cada tabla muestra cómo se comporta cada variante tecnológica frente a los diferentes niveles de carga, permitiendo observar tendencias y diferencias de desempeño entre alternativas.
+
+\subsection{API Gateway (C1)}
+\begin{table}[htbp]
+\centering
+\small
+\caption{Resultados completos para C1 (API Gateway).}
+\label{tab:s2-c1}
+\begin{tabular}{lrrrrrrr}
+\toprule
+Variante & VUS & avg\_ms & p95\_ms & err\_pct & rps & cpu\_mcores & mem\_mib \\
+\midrule
+baseline & 1  & 9.03  & 16.23 & 0.00 & 3.87  & 111.85 & 170.96 \\
+baseline & 5  & 10.03 & 20.56 & 0.00 & 19.27 & 347.04 & 159.57 \\
+baseline & 10 & 35.83 & 25.53 & 0.00 & 34.73 & 393.09 & 151.24 \\
+baseline & 20 & 36.90 & 30.01 & 0.00 & 69.90 & 578.28 & 159.77 \\
+istio    & 1  & 9.71  & 16.74 & 0.00 & 3.87  & 133.55 & 164.02 \\
+istio    & 5  & 12.48 & 25.68 & 0.44 & 18.85 & 186.18 & 155.60 \\
+istio    & 10 & 19.63 & 46.60 & 0.00 & 36.97 & 278.58 & 158.37 \\
+istio    & 20 & 26.47 & 77.60 & 0.00 & 72.43 & 563.38 & 165.06 \\
+kong     & 1  & 11.19 & 23.24 & 0.00 & 3.83  & 62.23  & 150.03 \\
+kong     & 5  & 11.00 & 22.61 & 0.00 & 19.23 & 173.86 & 146.31 \\
+kong     & 10 & 11.28 & 24.36 & 0.00 & 38.40 & 273.92 & 160.17 \\
+kong     & 20 & 12.51 & 28.34 & 0.90 & 74.37 & 552.42 & 156.94 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{mTLS (C2)}
+\begin{table}[htbp]
+\centering
+\small
+\caption{Resultados completos para C2 (mTLS).}
+\label{tab:s2-c2}
+\begin{tabular}{lrrrrrrr}
+\toprule
+Variante & VUS & avg\_ms & p95\_ms & err\_pct & rps & cpu\_mcores & mem\_mib \\
+\midrule
+baseline     & 1  & 7.94  & 14.93 & 0.00 & 3.90  & 206.71 & 162.46 \\
+baseline     & 5  & 9.88  & 21.01 & 0.17 & 19.27 & 276.57 & 169.56 \\
+baseline     & 10 & 10.26 & 21.79 & 0.00 & 38.47 & 219.80 & 153.89 \\
+baseline     & 20 & 11.59 & 25.62 & 0.00 & 76.70 & 494.66 & 160.81 \\
+istio-mtls   & 1  & 10.82 & 21.29 & 0.00 & 3.83  & 118.38 & 282.86 \\
+istio-mtls   & 5  & 12.50 & 24.69 & 0.00 & 19.10 & 298.12 & 275.75 \\
+istio-mtls   & 10 & 13.18 & 26.78 & 0.00 & 38.10 & 420.07 & 279.40 \\
+istio-mtls   & 20 & 13.94 & 29.55 & 0.00 & 75.97 & 621.65 & 300.00 \\
+linkerd-mtls & 1  & 10.81 & 21.85 & 0.00 & 3.83  & 118.72 & 162.83 \\
+linkerd-mtls & 5  & 12.78 & 25.07 & 0.00 & 18.90 & 211.10 & 177.27 \\
+linkerd-mtls & 10 & 11.68 & 23.54 & 0.35 & 38.30 & 304.10 & 192.07 \\
+linkerd-mtls & 20 & 13.78 & 31.31 & 0.00 & 76.03 & 518.44 & 172.47 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Rate Limiting (C4)}
+\begin{table}[htbp]
+\centering
+\small
+\caption{Resultados completos para C4 (Rate Limiting).}
+\label{tab:s2-c4}
+\begin{tabular}{lrrrrrrr}
+\toprule
+Variante & VUS & avg\_ms & p95\_ms & err\_pct & rps & cpu\_mcores & mem\_mib \\
+\midrule
+baseline & 1  & 8.42  & 16.31 & 0.00  & 3.87  & 166.09 & 155.25 \\
+baseline & 5  & 10.97 & 21.72 & 0.00  & 19.20 & 277.63 & 159.58 \\
+baseline & 10 & 10.94 & 23.53 & 0.00  & 38.40 & 334.63 & 145.53 \\
+baseline & 20 & 11.23 & 25.17 & 0.00  & 76.83 & 481.00 & 159.25 \\
+moderate & 1  & 7.77  & 14.39 & 0.00  & 3.90  & 80.42  & 152.84 \\
+moderate & 5  & 9.99  & 20.09 & 0.00  & 19.27 & 225.20 & 157.22 \\
+moderate & 10 & 12.07 & 25.67 & 0.00  & 38.27 & 470.02 & 177.42 \\
+moderate & 20 & 9.03  & 27.73 & 24.18 & 77.47 & 468.82 & 162.47 \\
+strict   & 1  & 8.42  & 15.44 & 0.00  & 3.87  & 124.15 & 151.33 \\
+strict   & 5  & 6.79  & 20.31 & 24.40 & 19.53 & 204.46 & 155.10 \\
+strict   & 10 & 5.02  & 20.14 & 37.29 & 39.33 & 423.71 & 164.91 \\
+strict   & 20 & 5.68  & 19.84 & 43.62 & 78.40 & 406.32 & 164.61 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{NetworkPolicy (C3)}
+\begin{table}[htbp]
+\centering
+\small
+\caption{Resultados completos para C3 (NetworkPolicy).}
+\label{tab:s2-c3}
+\begin{tabular}{lrrrrrrr}
+\toprule
+Variante & VUS & avg\_ms & p95\_ms & err\_pct & rps & cpu\_mcores & mem\_mib \\
+\midrule
+baseline & 1  & 8.56    & 16.33   & 0.00  & 3.87  & 76.65  & 170.85 \\
+baseline & 5  & 10.34   & 23.21   & 0.00  & 19.23 & 202.97 & 162.02 \\
+baseline & 10 & 11.26   & 23.91   & 0.00  & 38.37 & 382.01 & 177.10 \\
+baseline & 20 & 11.42   & 25.41   & 0.00  & 76.77 & 566.81 & 166.56 \\
+basic    & 1  & 8.56    & 16.16   & 0.00  & 3.87  & 135.06 & 161.11 \\
+basic    & 5  & 10.10   & 21.16   & 0.00  & 19.17 & 159.99 & 149.23 \\
+basic    & 10 & 11.24   & 24.45   & 0.00  & 38.37 & 282.73 & 161.48 \\
+basic    & 20 & 12.17   & 27.83   & 0.00  & 76.47 & 441.91 & 153.29 \\
+strict   & 1  & 1503.75 & 3006.61 & 50.00 & 0.60  & 135.59 & 166.54 \\
+strict   & 5  & 1508.06 & 3017.56 & 50.00 & 3.00  & 192.30 & 154.49 \\
+strict   & 10 & 1509.07 & 3016.90 & 50.00 & 6.00  & 343.94 & 155.69 \\
+strict   & 20 & 1510.49 & 3020.85 & 50.00 & 12.00 & 394.04 & 164.64 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Resumen de mejores variantes por control y carga}
+
+Finalmente, la siguiente tabla resume, para cada control y nivel de carga, la variante tecnológica que obtuvo el mejor desempeño bajo el criterio de validez funcional (\texttt{err\_pct $\leq$ 1\%}). En el caso de mTLS (C2), la comparación se realiza solo entre tecnologías de mTLS, excluyendo el baseline.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{c c l r r r r r r}
+\hline
+Control & VUS & Mejor variante & \multicolumn{1}{c}{avg\_ms} & \multicolumn{1}{c}{p95\_ms} & \multicolumn{1}{c}{err\_\%} & \multicolumn{1}{c}{rps} & \multicolumn{1}{c}{cpu\_mcores} & \multicolumn{1}{c}{mem\_mib} \\
+\hline
+C1 & 1  & istio        & 9.71  & 16.74 & 0.00 & 3.87  & 133.55 & 164.02 \\
+C1 & 5  & kong         & 11.00 & 22.61 & 0.00 & 19.23 & 173.86 & 146.31 \\
+C1 & 10 & kong         & 11.28 & 24.36 & 0.00 & 38.40 & 273.92 & 160.17 \\
+C1 & 20 & kong         & 12.51 & 28.34 & 0.90 & 74.37 & 552.42 & 156.94 \\
+C2 & 1  & linkerd-mtls & 10.81 & 21.85 & 0.00 & 3.83  & 118.72 & 162.83 \\
+C2 & 5  & istio-mtls   & 12.50 & 24.69 & 0.00 & 19.10 & 298.12 & 275.75 \\
+C2 & 10 & linkerd-mtls & 11.68 & 23.54 & 0.35 & 38.30 & 304.10 & 192.07 \\
+C2 & 20 & linkerd-mtls & 13.78 & 31.31 & 0.00 & 76.03 & 518.44 & 172.47 \\
+C3 & 1  & basic        & 8.56  & 16.16 & 0.00 & 3.87  & 135.06 & 161.11 \\
+C3 & 5  & basic        & 10.10 & 21.16 & 0.00 & 19.17 & 159.99 & 149.23 \\
+C3 & 10 & basic        & 11.24 & 24.45 & 0.00 & 38.37 & 282.73 & 161.48 \\
+C3 & 20 & basic        & 12.17 & 27.83 & 0.00 & 76.47 & 441.91 & 153.29 \\
+C4 & 1  & moderate     & 7.77  & 14.39 & 0.00 & 3.90  & 80.42  & 152.84 \\
+C4 & 5  & moderate     & 9.99  & 20.09 & 0.00 & 19.27 & 225.20 & 157.22 \\
+C4 & 10 & moderate     & 12.07 & 25.67 & 0.00 & 38.27 & 470.02 & 177.42 \\
+C4 & 20 & N/A          & --    & --    & --   & --    & --     & -- \\
+\hline
+\end{tabular}
+\caption{Resumen: mejor variante por control y carga, imponiendo criterio de validez funcional (\texttt{err\_pct $\leq$ 1\%}). En C2 se comparan solo tecnologías de mTLS.}
+\end{table}

@@ -1,0 +1,2322 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mubench-final-thesis-comparison
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    app.kubernetes.io/instance: prometheus
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/version: 84.5.0
+    chart: kube-prometheus-stack-84.5.0
+    heritage: Helm
+    release: prometheus
+spec:
+  groups:
+    - name: mubench-final-thesis-comparison.rules
+      rules:
+        - record: mubench_final_avg_ms
+          expr: "vector(9.029400)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_p95_ms
+          expr: "vector(16.225700)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_rps
+          expr: "vector(3.866700)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(111.854100)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_mem_mib
+          expr: "vector(170.964300)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_avg_ms
+          expr: "vector(10.030100)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_p95_ms
+          expr: "vector(20.564100)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_rps
+          expr: "vector(19.266700)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(347.036700)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_mem_mib
+          expr: "vector(159.574600)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_avg_ms
+          expr: "vector(35.826800)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_p95_ms
+          expr: "vector(25.533200)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_rps
+          expr: "vector(34.733300)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(393.087400)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_mem_mib
+          expr: "vector(151.236700)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_avg_ms
+          expr: "vector(36.895700)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_p95_ms
+          expr: "vector(30.010800)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_rps
+          expr: "vector(69.900000)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(578.283800)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_mem_mib
+          expr: "vector(159.766000)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_avg_ms
+          expr: "vector(9.711600)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "1"
+        - record: mubench_final_p95_ms
+          expr: "vector(16.744100)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "1"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "1"
+        - record: mubench_final_rps
+          expr: "vector(3.866700)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "1"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(133.553300)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "1"
+        - record: mubench_final_mem_mib
+          expr: "vector(164.018800)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "1"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(7.555319)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "1"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(3.194931)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "1"
+        - record: mubench_final_avg_ms
+          expr: "vector(12.477800)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "5"
+        - record: mubench_final_p95_ms
+          expr: "vector(25.682800)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "5"
+        - record: mubench_final_err_pct
+          expr: "vector(0.442100)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "5"
+        - record: mubench_final_rps
+          expr: "vector(18.850000)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "5"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(186.183800)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "5"
+        - record: mubench_final_mem_mib
+          expr: "vector(155.596900)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "5"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(24.403545)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "5"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(24.891437)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "5"
+        - record: mubench_final_avg_ms
+          expr: "vector(19.625300)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "10"
+        - record: mubench_final_p95_ms
+          expr: "vector(46.598500)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "10"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "10"
+        - record: mubench_final_rps
+          expr: "vector(36.966700)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "10"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(278.577000)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "10"
+        - record: mubench_final_mem_mib
+          expr: "vector(158.369500)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "10"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(-45.221733)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "10"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(82.501606)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "10"
+        - record: mubench_final_avg_ms
+          expr: "vector(26.469300)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "20"
+        - record: mubench_final_p95_ms
+          expr: "vector(77.602800)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "20"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "20"
+        - record: mubench_final_rps
+          expr: "vector(72.433300)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "20"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(563.383300)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "20"
+        - record: mubench_final_mem_mib
+          expr: "vector(165.062900)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "20"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(-28.259120)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "20"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(158.582910)"
+          labels:
+            control: "C1"
+            technology: "istio"
+            vus: "20"
+        - record: mubench_final_avg_ms
+          expr: "vector(11.189400)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "1"
+        - record: mubench_final_p95_ms
+          expr: "vector(23.237600)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "1"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "1"
+        - record: mubench_final_rps
+          expr: "vector(3.833300)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "1"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(62.231500)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "1"
+        - record: mubench_final_mem_mib
+          expr: "vector(150.027300)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "1"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(23.921855)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "1"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(43.214777)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "1"
+        - record: mubench_final_avg_ms
+          expr: "vector(11.003100)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "5"
+        - record: mubench_final_p95_ms
+          expr: "vector(22.613800)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "5"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "5"
+        - record: mubench_final_rps
+          expr: "vector(19.233300)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "5"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(173.861100)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "5"
+        - record: mubench_final_mem_mib
+          expr: "vector(146.309800)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "5"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(9.700801)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "5"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(9.967370)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "5"
+        - record: mubench_final_avg_ms
+          expr: "vector(11.284900)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "10"
+        - record: mubench_final_p95_ms
+          expr: "vector(24.360700)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "10"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "10"
+        - record: mubench_final_rps
+          expr: "vector(38.400000)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "10"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(273.920000)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "10"
+        - record: mubench_final_mem_mib
+          expr: "vector(160.173800)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "10"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(-68.501513)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "10"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(-4.592061)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "10"
+        - record: mubench_final_avg_ms
+          expr: "vector(12.511500)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "20"
+        - record: mubench_final_p95_ms
+          expr: "vector(28.337200)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "20"
+        - record: mubench_final_err_pct
+          expr: "vector(0.896500)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "20"
+        - record: mubench_final_rps
+          expr: "vector(74.366700)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "20"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(552.421200)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "20"
+        - record: mubench_final_mem_mib
+          expr: "vector(156.941000)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "20"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(-66.089544)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "20"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(-5.576659)"
+          labels:
+            control: "C1"
+            technology: "kong"
+            vus: "20"
+        - record: mubench_final_avg_ms
+          expr: "vector(7.939700)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_p95_ms
+          expr: "vector(14.933900)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_rps
+          expr: "vector(3.900000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(206.707200)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_mem_mib
+          expr: "vector(162.459400)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_avg_ms
+          expr: "vector(9.875300)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_p95_ms
+          expr: "vector(21.006200)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_err_pct
+          expr: "vector(0.173000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_rps
+          expr: "vector(19.266700)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(276.565100)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_mem_mib
+          expr: "vector(169.559400)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_avg_ms
+          expr: "vector(10.256600)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_p95_ms
+          expr: "vector(21.793000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_rps
+          expr: "vector(38.466700)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(219.796100)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_mem_mib
+          expr: "vector(153.887900)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_avg_ms
+          expr: "vector(11.589400)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_p95_ms
+          expr: "vector(25.623900)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_rps
+          expr: "vector(76.700000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(494.660100)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_mem_mib
+          expr: "vector(160.807400)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_avg_ms
+          expr: "vector(10.821300)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "1"
+        - record: mubench_final_p95_ms
+          expr: "vector(21.287000)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "1"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "1"
+        - record: mubench_final_rps
+          expr: "vector(3.833300)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "1"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(118.382000)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "1"
+        - record: mubench_final_mem_mib
+          expr: "vector(282.856200)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "1"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(36.293563)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "1"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(42.541466)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "1"
+        - record: mubench_final_avg_ms
+          expr: "vector(12.504400)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "5"
+        - record: mubench_final_p95_ms
+          expr: "vector(24.685800)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "5"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "5"
+        - record: mubench_final_rps
+          expr: "vector(19.100000)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "5"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(298.124100)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "5"
+        - record: mubench_final_mem_mib
+          expr: "vector(275.753500)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "5"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(26.622989)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "5"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(17.516733)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "5"
+        - record: mubench_final_avg_ms
+          expr: "vector(13.177300)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "10"
+        - record: mubench_final_p95_ms
+          expr: "vector(26.775300)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "10"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "10"
+        - record: mubench_final_rps
+          expr: "vector(38.100000)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "10"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(420.066500)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "10"
+        - record: mubench_final_mem_mib
+          expr: "vector(279.404700)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "10"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(28.476298)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "10"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(22.861928)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "10"
+        - record: mubench_final_avg_ms
+          expr: "vector(13.942000)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "20"
+        - record: mubench_final_p95_ms
+          expr: "vector(29.552400)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "20"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "20"
+        - record: mubench_final_rps
+          expr: "vector(75.966700)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "20"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(621.649600)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "20"
+        - record: mubench_final_mem_mib
+          expr: "vector(300.004700)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "20"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(20.299584)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "20"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(15.331390)"
+          labels:
+            control: "C2"
+            technology: "istio-mtls"
+            vus: "20"
+        - record: mubench_final_avg_ms
+          expr: "vector(10.807400)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "1"
+        - record: mubench_final_p95_ms
+          expr: "vector(21.851000)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "1"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "1"
+        - record: mubench_final_rps
+          expr: "vector(3.833300)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "1"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(118.724200)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "1"
+        - record: mubench_final_mem_mib
+          expr: "vector(162.827300)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "1"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(36.118493)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "1"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(46.318108)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "1"
+        - record: mubench_final_avg_ms
+          expr: "vector(12.779500)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "5"
+        - record: mubench_final_p95_ms
+          expr: "vector(25.066800)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "5"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "5"
+        - record: mubench_final_rps
+          expr: "vector(18.900000)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "5"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(211.095900)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "5"
+        - record: mubench_final_mem_mib
+          expr: "vector(177.268800)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "5"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(29.408727)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "5"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(19.330483)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "5"
+        - record: mubench_final_avg_ms
+          expr: "vector(11.680400)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "10"
+        - record: mubench_final_p95_ms
+          expr: "vector(23.539800)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "10"
+        - record: mubench_final_err_pct
+          expr: "vector(0.348100)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "10"
+        - record: mubench_final_rps
+          expr: "vector(38.300000)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "10"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(304.095300)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "10"
+        - record: mubench_final_mem_mib
+          expr: "vector(192.071900)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "10"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(13.881793)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "10"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(8.015418)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "10"
+        - record: mubench_final_avg_ms
+          expr: "vector(13.776700)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "20"
+        - record: mubench_final_p95_ms
+          expr: "vector(31.312600)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "20"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "20"
+        - record: mubench_final_rps
+          expr: "vector(76.033300)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "20"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(518.440100)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "20"
+        - record: mubench_final_mem_mib
+          expr: "vector(172.474200)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "20"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(18.873281)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "20"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(22.200758)"
+          labels:
+            control: "C2"
+            technology: "linkerd-mtls"
+            vus: "20"
+        - record: mubench_final_avg_ms
+          expr: "vector(8.564500)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_p95_ms
+          expr: "vector(16.325800)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_rps
+          expr: "vector(3.866700)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(76.653400)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_mem_mib
+          expr: "vector(170.850500)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_avg_ms
+          expr: "vector(10.340500)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_p95_ms
+          expr: "vector(23.213500)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_rps
+          expr: "vector(19.233300)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(202.974300)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_mem_mib
+          expr: "vector(162.021100)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_avg_ms
+          expr: "vector(11.256800)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_p95_ms
+          expr: "vector(23.908400)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_rps
+          expr: "vector(38.366700)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(382.012000)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_mem_mib
+          expr: "vector(177.099200)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_avg_ms
+          expr: "vector(11.418300)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_p95_ms
+          expr: "vector(25.405900)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_rps
+          expr: "vector(76.766700)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(566.813400)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_mem_mib
+          expr: "vector(166.560900)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_avg_ms
+          expr: "vector(8.558800)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "1"
+        - record: mubench_final_p95_ms
+          expr: "vector(16.161300)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "1"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "1"
+        - record: mubench_final_rps
+          expr: "vector(3.866700)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "1"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(135.061700)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "1"
+        - record: mubench_final_mem_mib
+          expr: "vector(161.112500)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "1"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(-0.066554)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "1"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(-1.007608)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "1"
+        - record: mubench_final_avg_ms
+          expr: "vector(10.101400)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "5"
+        - record: mubench_final_p95_ms
+          expr: "vector(21.156000)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "5"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "5"
+        - record: mubench_final_rps
+          expr: "vector(19.166700)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "5"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(159.985100)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "5"
+        - record: mubench_final_mem_mib
+          expr: "vector(149.231600)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "5"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(-2.312267)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "5"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(-8.863377)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "5"
+        - record: mubench_final_avg_ms
+          expr: "vector(11.237700)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "10"
+        - record: mubench_final_p95_ms
+          expr: "vector(24.448400)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "10"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "10"
+        - record: mubench_final_rps
+          expr: "vector(38.366700)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "10"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(282.732600)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "10"
+        - record: mubench_final_mem_mib
+          expr: "vector(161.478500)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "10"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(-0.169675)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "10"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(2.258620)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "10"
+        - record: mubench_final_avg_ms
+          expr: "vector(12.169600)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "20"
+        - record: mubench_final_p95_ms
+          expr: "vector(27.834200)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "20"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "20"
+        - record: mubench_final_rps
+          expr: "vector(76.466700)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "20"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(441.912600)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "20"
+        - record: mubench_final_mem_mib
+          expr: "vector(153.286700)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "20"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(6.579789)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "20"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(9.558016)"
+          labels:
+            control: "C3"
+            technology: "basic"
+            vus: "20"
+        - record: mubench_final_avg_ms
+          expr: "vector(1503.751400)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_p95_ms
+          expr: "vector(3006.605700)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_err_pct
+          expr: "vector(50.000000)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_rps
+          expr: "vector(0.600000)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(135.590400)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_mem_mib
+          expr: "vector(166.540600)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(17457.959017)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(18316.284041)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_avg_ms
+          expr: "vector(1508.057200)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_p95_ms
+          expr: "vector(3017.561600)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_err_pct
+          expr: "vector(50.000000)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_rps
+          expr: "vector(3.000000)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(192.301800)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_mem_mib
+          expr: "vector(154.493700)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(14483.987235)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(12899.166864)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_avg_ms
+          expr: "vector(1509.069300)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_p95_ms
+          expr: "vector(3016.899800)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_err_pct
+          expr: "vector(50.000000)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_rps
+          expr: "vector(6.000000)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(343.944200)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_mem_mib
+          expr: "vector(155.690600)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(13305.846244)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(12518.576735)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_avg_ms
+          expr: "vector(1510.492700)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_p95_ms
+          expr: "vector(3020.850200)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_err_pct
+          expr: "vector(50.000000)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_rps
+          expr: "vector(12.000000)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(394.035100)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_mem_mib
+          expr: "vector(164.642700)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(13128.700420)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(11790.349092)"
+          labels:
+            control: "C3"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_avg_ms
+          expr: "vector(8.424500)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_p95_ms
+          expr: "vector(16.310000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_rps
+          expr: "vector(3.866700)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(166.086700)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_mem_mib
+          expr: "vector(155.253900)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "1"
+        - record: mubench_final_avg_ms
+          expr: "vector(10.965400)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_p95_ms
+          expr: "vector(21.718500)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_rps
+          expr: "vector(19.200000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(277.626400)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_mem_mib
+          expr: "vector(159.577000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "5"
+        - record: mubench_final_avg_ms
+          expr: "vector(10.941800)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_p95_ms
+          expr: "vector(23.532100)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_rps
+          expr: "vector(38.400000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(334.627000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_mem_mib
+          expr: "vector(145.534800)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "10"
+        - record: mubench_final_avg_ms
+          expr: "vector(11.226700)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_p95_ms
+          expr: "vector(25.169400)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_rps
+          expr: "vector(76.833300)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(480.997300)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_mem_mib
+          expr: "vector(159.250800)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "baseline"
+            vus: "20"
+        - record: mubench_final_avg_ms
+          expr: "vector(7.767700)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "1"
+        - record: mubench_final_p95_ms
+          expr: "vector(14.391600)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "1"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "1"
+        - record: mubench_final_rps
+          expr: "vector(3.900000)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "1"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(80.423900)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "1"
+        - record: mubench_final_mem_mib
+          expr: "vector(152.840600)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "1"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(-7.796308)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "1"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(-11.762109)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "1"
+        - record: mubench_final_avg_ms
+          expr: "vector(9.985500)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "5"
+        - record: mubench_final_p95_ms
+          expr: "vector(20.087400)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "5"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "5"
+        - record: mubench_final_rps
+          expr: "vector(19.266700)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "5"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(225.195900)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "5"
+        - record: mubench_final_mem_mib
+          expr: "vector(157.223400)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "5"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(-8.936291)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "5"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(-7.510187)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "5"
+        - record: mubench_final_avg_ms
+          expr: "vector(12.067000)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "10"
+        - record: mubench_final_p95_ms
+          expr: "vector(25.669100)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "10"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "10"
+        - record: mubench_final_rps
+          expr: "vector(38.266700)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "10"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(470.023500)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "10"
+        - record: mubench_final_mem_mib
+          expr: "vector(177.417200)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "10"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(10.283500)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "10"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(9.081212)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "10"
+        - record: mubench_final_avg_ms
+          expr: "vector(9.031400)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "20"
+        - record: mubench_final_p95_ms
+          expr: "vector(27.733800)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "20"
+        - record: mubench_final_err_pct
+          expr: "vector(24.182400)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "20"
+        - record: mubench_final_rps
+          expr: "vector(77.466700)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "20"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(468.824500)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "20"
+        - record: mubench_final_mem_mib
+          expr: "vector(162.467200)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "20"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(-19.554277)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "20"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(10.188562)"
+          labels:
+            control: "C4"
+            technology: "moderate"
+            vus: "20"
+        - record: mubench_final_avg_ms
+          expr: "vector(8.417100)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_p95_ms
+          expr: "vector(15.443400)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_err_pct
+          expr: "vector(0.000000)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_rps
+          expr: "vector(3.866700)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(124.146400)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_mem_mib
+          expr: "vector(151.327000)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(-0.087839)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(-5.313305)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "1"
+        - record: mubench_final_avg_ms
+          expr: "vector(6.790000)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_p95_ms
+          expr: "vector(20.309100)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_err_pct
+          expr: "vector(24.402700)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_rps
+          expr: "vector(19.533300)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(204.458900)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_mem_mib
+          expr: "vector(155.101200)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(-38.077954)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(-6.489398)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "5"
+        - record: mubench_final_avg_ms
+          expr: "vector(5.016400)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_p95_ms
+          expr: "vector(20.142800)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_err_pct
+          expr: "vector(37.288100)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_rps
+          expr: "vector(39.333300)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(423.708100)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_mem_mib
+          expr: "vector(164.907800)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(-54.153796)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(-14.402879)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "10"
+        - record: mubench_final_avg_ms
+          expr: "vector(5.683500)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_p95_ms
+          expr: "vector(19.844900)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_err_pct
+          expr: "vector(43.622400)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_rps
+          expr: "vector(78.400000)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_cpu_mcores
+          expr: "vector(406.320900)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_mem_mib
+          expr: "vector(164.611700)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_overhead_avg_pct
+          expr: "vector(-49.375150)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "20"
+        - record: mubench_final_overhead_p95_pct
+          expr: "vector(-21.154656)"
+          labels:
+            control: "C4"
+            technology: "strict"
+            vus: "20"

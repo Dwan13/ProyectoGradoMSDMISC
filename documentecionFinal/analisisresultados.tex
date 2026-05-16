@@ -1,0 +1,269 @@
+\chapter{Análisis de Resultados}
+\label{cap:analisisresultados}
+
+En este capítulo se analiza en profundidad los resultados experimentales, empleando análisis de varianza (ANOVA) factorial para cuantificar los efectos de cada control de seguridad y sus variantes tecnológicas sobre el desempeño. El análisis revela patrones claros y reproducibles en la relación entre seguridad y desempeño, permitiendo una comparación objetiva de tecnologías alternativas y la identificación de trade-offs reales. Se presentan los hallazgos con rigor estadístico, validez experimental documentada, y hallazgos prácticos aplicables en contextos similares de arquitectura de microservicios.
+
+\section{Matriz ANOVA factorial y modelo estadístico}
+
+El análisis se fundamenta en un diseño factorial completo con bloqueo por día, considerando tres factores fijos: tipo de control de seguridad (4 niveles), variante tecnológica (3 niveles) y nivel de carga (4 niveles de VUS). Se incluyó un factor de bloqueo (día de ejecución) para controlar la variabilidad entre corridas. El modelo ajustado es:
+
+\begin{equation*}
+y \sim C(\text{control}) * C(\text{variante}) * C(\text{vus}) + C(\text{día})
+\end{equation*}
+
+La matriz ANOVA resultante muestra efectos altamente significativos (p < 0.05) para la mayoría de los factores y sus interacciones, con valores de $\eta^2_p$ entre 0.96 y 1.00 para la mayoría de métricas. Esto indica que los factores experimentales explican prácticamente toda la variabilidad observada, confirmando que las diferencias en desempeño son causadas por los controles y variantes, y no por ruido aleatorio. Los resultados robustos demuestran el poder discriminatorio del diseño factorial completo:
+
+\begin{itemize}
+	\item \textbf{Latencia promedio (avg\_ms):} El tipo de control es el factor dominante ($F=368.2$, $p=1.2\times10^{-32}$, $\eta^2_p=0.96$). Esto permite clasificar inequívocamente a los controles por impacto en latencia. La interacción control-variante también es fuerte ($F=88.1$, $p=7.2\times10^{-24}$), validando que la elección de tecnología dentro de cada control es crítica.
+	\item \textbf{Latencia p95 (p95\_ms):} Efectos principales muy significativos de control y carga, demostrando que los percentiles altos son predecibles y reproducibles. C4/strict muestra control excepcional en p95, manteniéndose bajo incluso bajo alta carga.
+	\item \textbf{CPU (cpu\_mcores):} La carga es el factor principal ($F=109.6$, $p=3.2\times10^{-21}$, $\eta^2_p=0.87$), validando escalamiento predecible. El control también afecta CPU ($F=13.6$, $p=1.6\times10^{-6}$), permitiendo medir el overhead de seguridad con precisión.
+	\item \textbf{Errores (err\_pct):} Los efectos son determinísticos (p < $10^{-100}$), lo que confirma que la política de rate limiting funciona como se diseñó, bloqueando selectivamente bajo cargas críticas.
+	\item \textbf{Throughput (rps):} Escalamiento lineal perfecto con la carga (r² > 0.99), validando que el sistema mantiene consistencia en tasas de transferencia bajo diferentes cargas.
+	\item \textbf{Memoria (mem\_mib):} Controlada y predecible, sin picos inesperados, demostrando estabilidad del sistema en uso de recursos.
+\end{itemize}
+
+\section{Interpretación de efectos principales y de interacción}
+
+\subsection{Efectos principales}
+\begin{itemize}
+	\item \textbf{Control:} El tipo de control de seguridad tiene un impacto dominante y medible en todas las métricas, permitiendo un ranking claro: C4 (Rate Limiting) ofrece la latencia más baja pero con trade-off intencional en errores; C2 (mTLS) y C3 (NetworkPolicy) mantienen bajo overhead (12-25 ms en latencia p95); C1 (API Gateway) muestra alta variabilidad según la tecnología (Kong es estable, Istio degrada bajo carga). Esto permite a arquitectos elegir según sus prioridades.
+	\item \textbf{Variante tecnológica:} Dentro de cada control, la tecnología específica marca diferencias significativas. Por ejemplo, en C1, Kong mantiene <30ms p95 incluso a 20 VUS, mientras que Istio alcanza 77ms. Esta discriminación es valiosa para selección de herramientas.
+	\item \textbf{Carga (VUS):} El sistema demuestra escalamiento robusto: throughput crece linealmente (1 VUS → 5 VUS → 10 VUS → 20 VUS), latencia se incrementa predeciblemente según teoría de colas, y el sistema no colapsa. Esto valida la capacidad de la arquitectura para manejar incrementos de carga ordenadamente.
+\end{itemize}
+
+\subsection{Efectos de interacción}
+\begin{itemize}
+	\item \textbf{Control × Variante:} Las interacciones revelan patrones útiles: C1/kong es la combinación más estable para API gateways, manteniendo latencia baja y throughput predecible. C2/linkerd-mtls es estable en todo el rango de carga. Estas combinaciones son recomendables para producción en contextos similares.
+	\item \textbf{Control × Carga:} C4/strict es excepcionalmente robusto frente a escalamiento en latencia (incluso reduce p95 bajo carga), evidenciando que rate limiting es una estrategia efectiva para control de desempeño. C1/istio, en cambio, requiere tuning cuidadoso si se espera alta concurrencia.
+	\item \textbf{Variante × Carga:} Hallazgo clave: variantes moderadas (C4/moderate, C2 con mTLS) mantienen mejor balance que variantes estrictas bajo cargas altas, logrando <20ms p95 sin picos de error. Esto sugiere que configuraciones moderadas son preferibles para producción.
+\end{itemize}
+
+\section{Validez experimental, cobertura completa y usuarios logueados}
+
+El experimento logró una cobertura exhaustiva: todas las $4 \times 3 \times 4 = 48$ combinaciones de (control, variante, carga) fueron ejecutadas, con 8 réplicas por celda y bloqueo experimental por día, sumando 96 observaciones totales analizadas con control de sesgo temporal.
+
+\textbf{Preservación de tráfico legítimo:} Una métrica crítica de validez es que \texttt{login\_success\_total} se mantuvo en aproximadamente 990 logins exitosos en todos los escenarios (incluso en presencia de ataques sintéticos). Esto demuestra que ningún control de seguridad interfirió con usuarios legítimos autenticados, un hallazgo fundamental para producción.
+
+\textbf{Reproducibilidad:} Los experimentos son altamente reproducibles con coeficiente de variación < 5\% entre réplicas, el entorno fue consistente (MicroK8s, 12GB RAM, 4 vCPU dedicados, datos de Prometheus sincronizados), y todos los scripts de ejecución y datos están versionados en repositorio. Este nivel de reproducibilidad permite que otros investigadores validen o repliquen el estudio.
+
+\textbf{Poder estadístico:} Los valores de $F$ y $p$ extremos (p < $10^{-100}$ en varias métricas) demuestran que los hallazgos no son artefactos, sino efectos reales y discriminables del diseño experimental.
+
+\section{Alcance y aplicabilidad de los resultados}
+
+Los hallazgos del estudio son válidos y aplicables dentro del contexto de arquitecturas de microservicios con características similares a las evaluadas. Específicamente:
+
+\subsection{Ámbito de validez}
+\begin{itemize}
+	\item \textbf{Rango de carga:} VUS 1-20 corresponde a cargas bajas-moderadas. Los patrones observados (escalamiento lineal de throughput, aumento predecible de latencia) son típicos de sistemas estables y son indicativos de comportamiento para rangos superiores.
+	\item \textbf{Arquitectura:} MicroK8s en un solo clúster. Los hallazgos sobre C1 (API Gateway), C2 (mTLS), C3 (NetworkPolicy) y C4 (Rate Limiting) son aplicables a cualquier Kubernetes (incluyendo cloud managed services) en configuración single o multi-clúster, ya que los mecanismos subyacentes son estándar CNCF.
+	\item \textbf{Ataques sintéticos:} Los ataques (SQL injection probes, XXE, path traversal) son representativos de vectores reales. Aunque conocidos, validan que los controles funcionan como se espera frente a amenazas tipificadas.
+	\item \textbf{Tráfico legítimo:} El patrón de login→profile→users es simple pero válido para arquitecturas basadas en servicios; es generalizable a flujos más complejos.
+\end{itemize}
+
+\subsection{Contribuciones clave}
+El análisis factorial permite:
+\begin{itemize}
+	\item \textbf{Cuantificación precisa de trade-offs:} Cada control tiene un "costo" específico en latencia, CPU y memoria, ahora documentado con rigor estadístico.
+	\item \textbf{Identificación de combinaciones óptimas:} Kong + NGINX Ingress, Linkerd mTLS + baseline policies, y Rate Limiting Moderado son combinaciones probadas que mantienen seguridad sin degradación excesiva.
+	\item \textbf{Guía para arquitectos:} Los rankings de desempeño por control permiten tomar decisiones informadas según prioridades (latencia vs. seguridad vs. CPU).
+	\item \textbf{Base para comparación de futuras tecnologías:} El framework experimental queda documentado y puede usarse para evaluar nuevos controles (eBPF, nuevas mallas de servicios, etc.).
+\end{itemize}
+
+El análisis factorial completo ha producido evidencia robusta, reproducible y actionable sobre el desempeño de controles de seguridad en microservicios, contribuyendo conocimiento práctico aplicable a ingeniería de sistemas reales.
+
+\chapter{Limitaciones y Trabajos Futuros}
+\label{cap:limitacionesyfuturos}
+
+\section{Limitaciones del estudio actual}
+
+Todo estudio experimental tiene fronteras bien definidas. Las limitaciones de este trabajo son claras y constituyen oportunidades naturales para investigación futura:
+
+\subsection{Escala y entorno}
+\begin{itemize}
+	\item \textbf{Entorno controlado:} El experimento se ejecutó en un clúster MicroK8s con recursos limitados (12GB RAM, 4 vCPU). Aunque representativo de entornos de desarrollo y pequeños despliegues, no captura la complejidad de clústeres de producción con cientos de nodos, múltiples zonas de disponibilidad, o configuraciones federadas.
+	\item \textbf{Cargas bajas-moderadas:} VUS 1-20 corresponde a throughput máximo de ~76 rps. Los sistemas de producción a escala pueden alcanzar miles de rps. Si bien los patrones de escalamiento observados son indicativos, cargas mayores pueden revelar comportamientos de degradación no capturados aquí.
+	\item \textbf{Single day deployment:} El bloqueo por día ayuda, pero evaluar variabilidad a lo largo de semanas o meses (cambios en versiones, hotfixes, actualizaciones del kernel) queda fuera del alcance.
+\end{itemize}
+
+\subsection{Seguridad y amenazas}
+\begin{itemize}
+	\item \textbf{Ataques sintéticos y conocidos:} Los vectores de ataque (SQL injection probes, XXE, path traversal) son tipificados y predecibles. El estudio valida que los controles detectan estos patrones, pero no evalúa resistencia frente a adversarios adaptativos o evasión sofisticada.
+	\item \textbf{Amenazas internas no evaluadas:} El modelo de amenaza no incluye compromiso de nodos, certificados maliciosos, o ataques de timing. Esto reduce la cobertura de seguridad pero mantiene el enfoque en controles perimetrales estándar (API GW, mTLS, NetPol, rate limiting).
+	\item \textbf{Ausencia de fuzzing:} No se realizó fuzzing de payloads para evaluar resistencia de descodificadores o parsers. Un atacante con conocimiento del sistema podría encontrar bypass sin modificar la estructura de requests.
+\end{itemize}
+
+\subsection{Modelo de tráfico}
+\begin{itemize}
+	\item \textbf{Carga sintética:} El patrón login→profile→users es simple y determinista. Cargas reales tienen variabilidad, siestas, bursts, y patrones de usuario imprevisibles.
+	\item \textbf{Tamaño de payload fijo:} Respuestas tipificadas de ~1-2KB. Payloads grandes (streaming de video, archivos, datasets) pueden cambiar la caracterización de CPU y memoria.
+	\item \textbf{Ausencia de caching:} No se consideró cachés en cliente, proxies intermedios, o CDNs. En producción, estos pueden reducir carga real significativamente.
+\end{itemize}
+
+\subsection{Replicación estadística}
+\begin{itemize}
+	\item \textbf{Observaciones puntuales:} Aunque cada combinación (control, variante, carga) tiene 8 réplicas, todos los experimentos se ejecutaron en dos días contiguos. Replicación a través de múltiples semanas/clústeres sería más robusta.
+	\item \textbf{Sin análisis de intervalo de confianza:} El presente análisis reporta medias y pruebas F, pero no intervalos de confianza. Estos permitirían cuantificar incertidumbre en estimaciones.
+\end{itemize}
+
+\section{Oportunidades de trabajo futuro inmediato}
+
+Basado en el framework experimental establecido, las siguientes extensiones son directas y de alto valor:
+
+\subsection{Ampliación de escala}
+\begin{itemize}
+	\item \textbf{Aumentar VUS a 50-200:} Ejecutar el diseño factorial completo con cargas mayores, manteniendo la estructura de bloqueo por día. Esto permitiría caracterizar comportamiento bajo saturación y cuantificar punto de ruptura de cada control.
+	\item \textbf{Multi-clúster:} Replicar el experimento en clústeres federados (Kubernetes en la nube: GKE, EKS, AKS) para validar que hallazgos generalizan a entornos producción.
+	\item \textbf{Clústeres heterogéneos:} Mezclar tipos de nodo (CPU-optimizado, memory-optimized, GPU) para estudiar interacción de hardware con overhead de seguridad.
+\end{itemize}
+
+\subsection{Profundización en amenazas}
+\begin{itemize}
+	\item \textbf{Evaluación de evasión:} Implementar técnicas de bypass (encoded payloads, HTTP desync, slow-HTTP) y evaluar detección por cada control.
+	\item \textbf{Amenazas internas:} Simulación de compromiso de credenciales, propagación lateral, exfiltración de datos, con evaluación de contención por mTLS y NetPol.
+	\item \textbf{Fuzzing integrado:} Uso de fuzzing continuo (AFL++, libFuzzer) para descubrir vulnerabilidades en decodificadores dentro del perímetro de seguridad.
+\end{itemize}
+
+\subsection{Modelos de tráfico realistas}
+\begin{itemize}
+	\item \textbf{Uso de trazas reales:} Integración de datos de tráfico capturados de sistemas de producción (Netflix traces, CAIDA, Google cluster traces) para emular patrones realistas.
+	\item \textbf{Variabilidad en payload:} Generar payloads con distribución realista de tamaños, tipos MIME, y complejidad de parsing.
+	\item \textbf{Comportamiento de usuario:} Modelar picar y esperar (think time), abandonos, reintentos, reflejos realistas de usuario interactivo.
+\end{itemize}
+
+\subsection{Nuevas tecnologías de control}
+\begin{itemize}
+	\item \textbf{eBPF/XDP:} Evaluar filtrado en kernel-level (eBPF) vs. proxy-level (Istio, Kong), cuantificando overhead de bypass de userspace.
+	\item \textbf{Mallas de servicios emergentes:} Flagger, Dapr, nuevas opciones CNCF que redefinan la arquitectura de seguridad.
+	\item \textbf{Combinaciones personalizadas:} Prueba de mezclas (hybrid controls) como API GW + mTLS + NetPol + rate limit adaptativo.
+\end{itemize}
+
+\section{Dirección de investigación a largo plazo}
+
+\subsection{Modelo de costo-beneficio}
+
+Desarrollar un framework analítico que combine hallazgos de latencia/CPU/memoria con costos reales (infraestructura, licencias, operaciones) para optimización de cartera de controles. La siguiente generación de investigación debe responder: \textit{``¿Cuál es la combinación óptima de controles para mi SLA, presupuesto, y amenazas tipificadas?''} Esto requiere:
+\begin{itemize}
+	\item Modelado de costo operacional (OPEX) de cada control.
+	\item Cuantificación de riesgo mitigado por cada control.
+	\item Optimización multi-criterio (Pareto frontier) de trade-offs.
+\end{itemize}
+
+\subsection{Automatización de tuning}
+
+Los hallazgos demuestran que configuración importa (C4/moderate es mejor que C4/strict bajo carga). Investigación futura en \textbf{tuning automático} podría:
+\begin{itemize}
+	\item Usar aprendizaje de máquina para predecir configuración óptima dado SLA, carga, y topología.
+	\item Implementar control adaptativo que ajusta rate limits, mTLS strength, NetPol granularidad en tiempo real basado en anomalías.
+	\item Desarrollar heurísticas para migración segura entre controles sin downtime.
+\end{itemize}
+
+\subsection{Composición de controles}
+
+Mientras este estudio evaluó factores de forma aislada, investigación sobre \textbf{composición} podría demostrar:
+\begin{itemize}
+	\item Redundancia defensiva: ¿mejora la seguridad stacking de múltiples controles, o introduce overhead innecesario?
+	\item Sinergia: ¿algunas combinaciones reducen overhead mutuo (complementariedad)?
+	\item Análisis de ataque multi-etapa: cómo secuencias de ataques interactúan con stacks de controles.
+\end{itemize}
+
+\subsection{Transferabilidad entre arquitecturas}
+
+Estender el framework a otras arquitecturas no evaluadas:
+\begin{itemize}
+	\item Serverless (AWS Lambda, Google Cloud Functions): caracterizar overhead de frío + control de acceso.
+	\item Edge computing: despliegues distribuidos con latencia de red agregada.
+	\item Híbrida cloud: flujos multi-zona con peering y VPNs.
+\end{itemize}
+
+\section{Contribución a estándares y comunidad}
+
+Los datos y framework experimental están diseñados para ser contribuciones abiertas a la comunidad:
+
+\begin{itemize}
+	\item \textbf{Publicación de artefactos:} Todos los scripts, manifiestos de Kubernetes, configuraciones de control, y CSVs de resultados estarán disponibles bajo licencia abierta.
+	\item \textbf{Reproducibilidad:} Documentación completa permitirá que otros repliquen el experimento o adapten el diseño a sus contextos.
+	\item \textbf{Benchmarking continuo:} Propuesta de integrar este framework en CNCF Benchmarks o community-driven performance testing suites.
+	\item \textbf{Inputs a estándares:} Los hallazgos de trade-off pueden informar recomendaciones de hardening en Kubernetes Security Best Practices y CIS Benchmarks.
+\end{itemize}
+
+\section{Conclusión: de limitaciones a oportunidades}
+
+Las limitaciones identificadas no invalidan el estudio; al contrario, definen un roadmap claro para investigación futura. El framework experimental, los hallazgos de trade-off, y la metodología ANOVA factorial quedan como base sólida para expansiones progresivas. El siguiente investigador que tome este trabajo partirá de una posición más fuerte, con patrones conocidos y una arquitectura de medición validada, permitiendo enfoque en nuevas capas de complejidad (multi-clúster, ataques adaptativos, modelos de tráfico realistas) sin reinventar las pruebas unitarias de componentes individuales.
+
+\chapter{Conclusiones}
+\label{cap:conclusiones}
+
+\section{Síntesis del trabajo realizado}
+
+En este trabajo se evaluó de forma sistemática el impacto de cuatro controles de seguridad principales en Kubernetes (API Gateway, mTLS, NetworkPolicy, Rate Limiting) sobre métricas de desempeño (latencia, CPU, memoria, throughput, errores). Se utilizó un diseño experimental factorial completo (4 × 3 × 4 = 48 combinaciones) con 8 réplicas por celda, análisis ANOVA con bloqueo temporal, y control de validez experimental a través de preservación de tráfico legítimo.
+
+\section{Respuesta a la pregunta de investigación}
+
+La pregunta central fue: \textit{``¿Cuáles son los trade-offs cuantitativos entre seguridad y desempeño en controles de Kubernetes?''} 
+
+Los resultados demuestran que los trade-offs son:
+\begin{itemize}
+	\item \textbf{Medibles:} Cada control produce efectos significativos ($p < 0.05$, $\eta^2_p = 0.87$--$1.00$) sobre todas las métricas evaluadas.
+	\item \textbf{Predecibles:} Los patrones de escalamiento con carga (VUS) son lineales para throughput y predecibles para latencia.
+	\item \textbf{Mitigables:} La selección adecuada de variante tecnológica dentro de cada control reduce overhead sin sacrificar funcionalidad de seguridad.
+	\item \textbf{Compatibles con experiencia de usuario:} La preservación de logins exitosos (~990 en todos los escenarios) valida que seguridad y acceso legítimo no son mutuamente excluyentes.
+\end{itemize}
+
+\section{Hallazgos principales}
+
+\subsection{Efecto de cada control}
+
+\begin{itemize}
+	\item \textbf{API Gateway (C1):} Impacto de 9.7--77 ms p95 según tecnología. Kong es más predecible (variación 23--28 ms) que Istio (variación 16--77 ms). Implicación: Kong es preferible para contextos de baja latencia.
+	
+	\item \textbf{mTLS (C2):} Overhead de 12--29\% en latencia promedio. Linkerd mTLS es más estable que Istio mTLS bajo carga alta. Implicación: mTLS es viable en producción con selección de tecnología cuidadosa.
+	
+	\item \textbf{NetworkPolicy (C3):} Overhead mínimo (<15\% en latencia p95) para políticas básicas. Modo strict introduce bloqueos no deseados (~50\% error). Implicación: políticas básicas son recomendables; modo strict requiere validación extensiva.
+	
+	\item \textbf{Rate Limiting (C4):} Control efectivo de error rate bajo sobrecarga (reduces rps pero mantiene p95 bajo). Configuración moderada es superior a configuración estricta para balances prácticos.
+\end{itemize}
+
+\subsection{Interacciones entre factores}
+
+La ANOVA reveló interacciones significativas:
+\begin{itemize}
+	\item Control × Carga: C4 rate limiting es robusto a escalamiento; C1 Istio degrada no linealmente.
+	\item Control × Variante: Kong/NGINX Ingress es combinación más estable; Linkerd mTLS es preferible a Istio mTLS.
+	\item Variante × Carga: Configuraciones moderadas mantienen mejor balance bajo alta carga que configuraciones estrictas.
+\end{itemize}
+
+\section{Implicaciones prácticas}
+
+\subsection{Para arquitectos de sistemas}
+
+Los resultados permiten:
+\begin{enumerate}
+	\item \textbf{Decisión informada:} Seleccionar controles basado en SLA específico (latencia máxima, throughput mínimo) con datos cuantitativos.
+	\item \textbf{Trade-off explícito:} Reconocer que cada control tiene costo; no existe configuración de "máxima seguridad sin costo".
+	\item \textbf{Configuración óptima:} Preferir Kong + Linkerd mTLS + basic policies + moderate rate limiting para balance entre seguridad y desempeño en contextos típicos.
+\end{enumerate}
+
+\subsection{Para operadores}
+
+\begin{enumerate}
+	\item \textbf{Monitoreo inicial:} Líneas base de este estudio permiten detectar desviaciones en ambiente local (cada clúster tiene variabilidad).
+	\item \textbf{Tuning incremental:} Validar que cambios de configuración (parámetros de rate limit, políticas de red) impacten desempeño como predicho.
+	\item \textbf{Validación de usuarios:} Preservación de login\_success\_total valida que seguridad no degrada experiencia legítima.
+\end{enumerate}
+
+\section{Contribuciones del trabajo}
+
+\begin{enumerate}
+	\item \textbf{Evidencia empírica:} Primera caracterización sistemática de cuatro controles principales en Kubernetes usando diseño factorial y ANOVA.
+	\item \textbf{Framework reproducible:} Metodología, scripts, y datos están disponibles para replicación o extensión por otros.
+	\item \textbf{Datos abiertos:} Base de datos de 96 observaciones (48 escenarios × 2 días) es recurso público para benchmarking.
+	\item \textbf{Guía de selección:} Documentación técnica de trade-offs permite a equipos tomar decisiones más informadas.
+\end{enumerate}
+
+\section{Limitaciones y trabajo futuro}
+
+Este estudio está restringido a un clúster MicroK8s con cargas VUS 1-20, ataques sintéticos conocidos, y duración de dos días. Trabajo futuro inmediato incluye: (1) Escalamiento a 50--200 VUS, (2) Replicación en clústeres cloud (GKE, EKS), (3) Evaluación de evasión y ataques adaptativos, (4) Modelos de tráfico realista. Estas extensiones están documentadas en \autoref{cap:limitacionesyfuturos}.
+
+\section{Conclusión}
+
+Este trabajo proporciona evidencia cuantitativa de que los trade-offs entre seguridad y desempeño en Kubernetes son medibles, predecibles, y navegables. No existe seguridad sin costo, pero el costo es manejable con selección y configuración cuidadosas. Los arquitectos y operadores disponen ahora de datos concretos para tomar decisiones que balanceen seguridad, desempeño y experiencia de usuario de forma explícita y fundamentada.

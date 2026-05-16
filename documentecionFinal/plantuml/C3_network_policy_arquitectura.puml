@@ -1,0 +1,54 @@
+@startuml
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam ArrowColor #2F4F4F
+skinparam DefaultTextAlignment center
+
+left to right direction
+
+title C3 - Arquitectura NetworkPolicy S2 (baseline, basic, moderate, strict)
+
+actor "k6 S2 runner" as k6
+
+node "Namespace mubench-real" {
+  component "auth-service" as auth
+  component "api-service" as api
+  component "data-service" as data
+  database "postgres" as db
+}
+
+cloud "CNI Enforcement\n(Calico/Cilium)" as cni
+
+k6 --> auth : HTTP NodePort 30184 (/login)
+k6 --> api : HTTP NodePort 30181 (/profile,/users)
+api --> data : HTTP 8080
+data --> db : TCP 5432
+
+cni ..> api : aplica reglas Egress
+cni ..> data : aplica reglas Ingress/Egress
+cni ..> db : aplica reglas Ingress
+
+note right of cni
+C3/baseline:
+- sin NetworkPolicy (red plana)
+
+C3/basic:
+- api -> data permitido
+- data -> postgres permitido
+- DNS permitido
+
+C3/moderate:
+- como basic + egress explicito api-service
+
+C3/strict:
+- api-service egress SOLO DNS
+- api -> data bloqueado intencionalmente
+
+Nota S2 final:
+- El benchmark de C3 se ejecuta via NodePort HTTP
+- El control actua en trafico inter-servicio (CNI)
+end note
+
+@enduml
