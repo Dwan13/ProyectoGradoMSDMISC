@@ -14,5 +14,5 @@
    },
    "InternalServiceFilePath": "../../CustomFunctions",
    "OutputPath": "SimulationWorkspace",
-   "WorkModelPath": "../../WorkModelGenerator/SimulationWorkspace/workmodel.json"
+   "WorkModelPath": "../../experiments/05-mubench-advanced/SimulationWorkspace/workmodel.json"
 }

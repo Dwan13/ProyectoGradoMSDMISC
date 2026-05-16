@@ -6,7 +6,16 @@ GRAFANA_USER="${GRAFANA_USER:-admin}"
 GRAFANA_PASS="${GRAFANA_PASS:-}"
 
 if [[ -z "${GRAFANA_PASS}" ]]; then
-  GRAFANA_PASS=$(microk8s kubectl get secret -n observability kube-prom-stack-grafana -o jsonpath='{.data.admin-password}' 2>/dev/null | base64 --decode || true)
+  # Try common Grafana secret locations (observability, monitoring)
+  for ns in observability monitoring; do
+    for secret in kube-prom-stack-grafana prometheus-grafana; do
+      GRAFANA_PASS=$(microk8s kubectl get secret -n "${ns}" "${secret}" -o jsonpath='{.data.admin-password}' 2>/dev/null | base64 --decode || true)
+      if [[ -n "${GRAFANA_PASS}" ]]; then
+        GRAFANA_USER=$(microk8s kubectl get secret -n "${ns}" "${secret}" -o jsonpath='{.data.admin-user}' 2>/dev/null | base64 --decode || echo "${GRAFANA_USER}")
+        break 2
+      fi
+    done
+  done
 fi
 
 if [[ -z "${GRAFANA_PASS}" ]]; then

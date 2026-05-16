@@ -1,0 +1,56 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: realistic-gateway
+  namespace: mubench-real
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - real-postgres.local
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE
+        credentialName: mubench-tls
+      hosts:
+        - real-postgres.local
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: realistic-vs
+  namespace: mubench-real
+spec:
+  hosts:
+    - real-postgres.local
+  gateways:
+    - realistic-gateway
+  http:
+    - match:
+        - uri:
+            exact: /profile
+          method:
+            exact: GET
+      route:
+        - destination:
+            host: api-service.mubench-real.svc.cluster.local
+            port:
+              number: 8080
+    - match:
+        - uri:
+            exact: /login
+          method:
+            exact: POST
+      route:
+        - destination:
+            host: auth-service.mubench-real.svc.cluster.local
+            port:
+              number: 8080

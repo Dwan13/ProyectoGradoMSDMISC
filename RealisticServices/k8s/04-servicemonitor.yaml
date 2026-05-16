@@ -2,9 +2,9 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: realistic-services
-  namespace: observability
+  namespace: monitoring
   labels:
-    release: kube-prom-stack
+    release: prometheus
 spec:
   selector:
     matchExpressions:

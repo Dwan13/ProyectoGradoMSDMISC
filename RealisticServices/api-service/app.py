@@ -13,8 +13,8 @@ app = FastAPI(title="api-service", version="1.0.0")
 
 JWT_SECRET = os.getenv("JWT_SECRET", "mubench-dev-secret")
 DATA_SERVICE_URL = os.getenv("DATA_SERVICE_URL", "http://data-service:8080")
-RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "false").lower() == "true"
-RATE_LIMIT_RPM = int(os.getenv("RATE_LIMIT_RPM", "600"))
+RATE_LIMIT_ENABLED = False
+RATE_LIMIT_RPM = 600
 
 HTTP_REQUESTS_TOTAL = Counter(
     "mubench_http_requests_total",
@@ -43,17 +43,8 @@ _rate_window = deque()
 
 
 def enforce_rate_limit() -> None:
-    if not RATE_LIMIT_ENABLED:
-        return
-
-    now = time.time()
-    min_ts = now - 60.0
-    with _rate_lock:
-        while _rate_window and _rate_window[0] < min_ts:
-            _rate_window.popleft()
-        if len(_rate_window) >= RATE_LIMIT_RPM:
-            raise HTTPException(status_code=429, detail="rate limit exceeded")
-        _rate_window.append(now)
+    # Rate limiting desactivado, ahora se maneja en el gateway NGINX
+    return
 
 
 @app.middleware("http")

@@ -1,0 +1,93 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: s3-default-deny-all
+  namespace: mubench-advanced
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: s3-allow-gateway-ingress
+  namespace: mubench-advanced
+spec:
+  podSelector:
+    matchLabels:
+      app: gw-nginx
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: s3-allow-internal-ingress
+  namespace: mubench-advanced
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: ["s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "sdb1"]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: ["gw-nginx", "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "sdb1"]
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 51313
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: s3-allow-egress-internal-dns
+  namespace: mubench-advanced
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: ["gw-nginx", "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "sdb1"]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: ["gw-nginx", "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "sdb1"]
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 51313
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

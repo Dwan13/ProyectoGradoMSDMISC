@@ -34,7 +34,7 @@ spec:
           ports:
             - name: http-mubpodport
               containerPort: 8080
-            - name: https-mubpodport
+            - name: https-mubpod
               containerPort: 8443
           volumeMounts:
             - name: podinfo
@@ -67,18 +67,18 @@ spec:
                   fieldPath: metadata.namespace
           readinessProbe:
             httpGet:
-              path: /ready
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 3
-          livenessProbe:
-            httpGet:
-              path: /health
+              path: /metrics
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 15
             timeoutSeconds: 5
             failureThreshold: 3
           resources: {{RESOURCES}}    

@@ -26,16 +26,19 @@ build_push "data-service" "${ROOT_DIR}/data-service"
 build_push "api-service" "${ROOT_DIR}/api-service"
 
 log "Applying manifests"
+
 microk8s kubectl apply -f "${ROOT_DIR}/k8s/00-namespace.yaml"
 microk8s kubectl apply -f "${ROOT_DIR}/k8s/01-postgres.yaml"
 microk8s kubectl apply -f "${ROOT_DIR}/k8s/02-services.yaml"
 microk8s kubectl apply -f "${ROOT_DIR}/k8s/04-servicemonitor.yaml"
 microk8s kubectl apply -f "${ROOT_DIR}/k8s/05-prometheusrule.yaml"
 
-if python3 "${ROOT_DIR}/generate-experiment-comparison-rule.py"; then
-  microk8s kubectl apply -f "${ROOT_DIR}/k8s/06-experiment-comparison-rule.yaml"
-else
-  log "Skipping experiment comparison rule (missing/invalid consolidated CSV)"
+# Aplicar secreto TLS e Ingress NGINX
+if [ -f "${ROOT_DIR}/k8s/ingress-tls-secret.yaml" ]; then
+  microk8s kubectl apply -f "${ROOT_DIR}/k8s/ingress-tls-secret.yaml"
+fi
+if [ -f "${ROOT_DIR}/k8s/ingress-nginx.yaml" ]; then
+  microk8s kubectl apply -f "${ROOT_DIR}/k8s/ingress-nginx.yaml"
 fi
 
 log "Restarting app deployments to pull updated images"
