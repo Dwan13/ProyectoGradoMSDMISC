@@ -26,6 +26,7 @@
 #   bash scripts/replicate-tomorrow.sh --mode quick --yes
 #   bash scripts/replicate-tomorrow.sh --mode full --yes --shutdown-after
 #   bash scripts/replicate-tomorrow.sh --mode bootstrap
+#   bash scripts/replicate-tomorrow.sh bootstrap --yes
 #   bash scripts/replicate-tomorrow.sh --mode dry-run
 # ==============================================================================
 set -euo pipefail
@@ -59,6 +60,13 @@ while [[ $# -gt 0 ]]; do
     --shutdown-after)  SHUTDOWN_AFTER=true; shift ;;
     --yes)             ASSUME_YES=true; shift ;;
     -h|--help)         usage; exit 0 ;;
+    quick|full|bootstrap|dry-run)
+      if [[ "$MODE" != "bootstrap" ]]; then
+        fail "modo ya especificado: $MODE"
+      fi
+      MODE="$1"
+      shift
+      ;;
     *) fail "opción desconocida: $1" ;;
   esac
 done

@@ -1,5 +1,5 @@
 import http from 'k6/http';
-import { check, group } from 'k6';
+import { check, group, sleep } from 'k6';
 import { Counter, Trend } from 'k6/metrics';
 
 /**
@@ -83,19 +83,24 @@ const COMMON_PASSWORDS = [
 ];
 
 export const options = {
-  vus: __ENV.VUS || 5,
+  vus: Number(__ENV.VUS || 5),
   duration: __ENV.DURATION || '60s',
+  insecureSkipTLSVerify: true,
+  hosts: { 'realistic.local': '127.0.0.1' },
 };
 
+const SLEEP_MS = Number(__ENV.SLEEP_MS || 0);
+
 export default function () {
-  const endpoint = __ENV.ENDPOINT || 'http://localhost:5000';
-  const targetPath = '/auth/login';
+  const authBase = __ENV.AUTH_URL || __ENV.ENDPOINT || 'http://localhost:30084';
+  const targetPath = authBase.startsWith('https') ? '/auth/login' : '/login';
+  const hostHeader = __ENV.HOST_HEADER || '';
   
   group('Credential Stuffing Attacks', () => {
     // Pick random user and password from common lists
     const user = COMMON_USERS[Math.floor(Math.random() * COMMON_USERS.length)];
     const pass = COMMON_PASSWORDS[Math.floor(Math.random() * COMMON_PASSWORDS.length)];
-    const url = `${endpoint}${targetPath}`;
+    const url = `${authBase}${targetPath}`;
     
     credstuff_attempts_total.add(1);
     
@@ -108,6 +113,7 @@ export default function () {
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': 'k6-attacker/credstuff',
+        ...(hostHeader ? { Host: hostHeader } : {}),
       },
       tags: {
         attack_type: 'credstuff',
@@ -140,6 +146,10 @@ export default function () {
       });
     }
   });
+
+  if (SLEEP_MS > 0) {
+    sleep(SLEEP_MS / 1000);
+  }
 }
 
 export function handleSummary(data) {

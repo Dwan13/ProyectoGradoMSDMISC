@@ -48,6 +48,7 @@ PROM_URL = "http://localhost:30000"
 K6_PROFILES = {
     "crud":        ROOT / "k6" / "crud_products.js",
     "attack_sqli": ROOT / "k6" / "attack_sqli.js",
+    "attack_credstuff": ROOT / "k6" / "attack_credstuff.js",
 }
 
 # Diseño factorial: 12 escenarios
@@ -222,7 +223,7 @@ def main():
                     help="filtrar: ej C1/baseline C2/istio_mtls")
     ap.add_argument("--profile", choices=sorted(K6_PROFILES.keys()),
                     default="crud",
-                    help="perfil de carga k6 (crud=legítimo, attack_sqli=SQLi)")
+                    help="perfil de carga k6 (crud=legítimo, attack_sqli=SQLi, attack_credstuff=burst login)")
     args = ap.parse_args()
 
     k6_script = K6_PROFILES[args.profile]

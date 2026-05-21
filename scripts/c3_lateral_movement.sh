@@ -11,11 +11,14 @@
 #     directo a data-service o postgres (T1021/T1570, OWASP A05/A07).
 #   - exfiltración: api-service intentando egress a Internet
 #     (variante strict).
+#   - dependencia externa legítima: api-service intentando consumir un endpoint
+#     HTTP público simple. Esto cuantifica el costo operacional de strict.
 #
 # Probes:
 #   P1: attacker → data-service:8080/products  (debe bloquearse en basic+strict)
 #   P2: attacker → postgres:5432               (debe bloquearse en basic+strict)
 #   P3: api-service → 1.1.1.1:443              (debe bloquearse SOLO en strict)
+#   P4: api-service → example.com:80 (HTTP)    (debe bloquearse SOLO en strict)
 #
 # Criterio binario:
 #   passed  = conexión exitosa (HTTP 200 / TCP open)
@@ -162,11 +165,61 @@ probe_api_egress() {
 }
 
 # -----------------------------------------------------------------------------
-# Ejecutar 3 probes
+# Helper: dependencia externa legítima vía HTTP simple.
+# Usa Python stdlib dentro de api-service para resolver DNS, abrir socket TCP y
+# verificar que el peer remoto responda con una línea HTTP. Mide costo
+# operacional: strict debería bloquear este flujo aunque no sea malicioso.
+# -----------------------------------------------------------------------------
+probe_api_external_http() {
+  local probe="P4"; local target="api->example.com-http"
+  local raw="${LOG_DIR}/${LABEL}_${probe}_raw.csv"
+  echo "i,exit_code" > "${raw}"
+  local pod
+  pod=$(kubectl -n "${NS}" get pod -l app=api-service -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+  if [[ -z "${pod}" ]]; then
+    log "WARN: api-service pod no encontrado, saltando P4"
+    echo "${LABEL},${probe},${target},0,0,0,NA" | tee -a "${OUT_CSV}"
+    return
+  fi
+  log "${probe} → ${target} (api-service=${pod}, ${ATTEMPTS} intentos)"
+  local blocked=0 passed=0
+  for i in $(seq 1 "${ATTEMPTS}"); do
+    set +e
+    kubectl -n "${NS}" exec -i "${pod}" -c api-service -- python3 - <<'PY' >/dev/null 2>&1
+import socket, sys
+
+host = "example.com"
+port = 80
+request = b"GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n"
+
+try:
+    sock = socket.create_connection((host, port), timeout=3)
+    sock.sendall(request)
+    data = sock.recv(64)
+    sock.close()
+    if data.startswith(b"HTTP/"):
+        sys.exit(0)
+    sys.exit(2)
+except Exception:
+    sys.exit(1)
+PY
+    EC=$?
+    set -e
+    echo "${i},${EC}" >> "${raw}"
+    if [[ ${EC} -eq 0 ]]; then passed=$((passed+1)); else blocked=$((blocked+1)); fi
+  done
+  local total=$((blocked+passed)) rate=0
+  [[ $total -gt 0 ]] && rate=$(awk "BEGIN{printf \"%.2f\", ${blocked}*100/${total}}")
+  echo "${LABEL},${probe},${target},${total},${blocked},${passed},${rate}" | tee -a "${OUT_CSV}"
+}
+
+# -----------------------------------------------------------------------------
+# Ejecutar 4 probes
 # -----------------------------------------------------------------------------
 probe_http "P1" "data-service" "http://data-service.${NS}.svc.cluster.local:8080/products"
 probe_tcp  "P2" "postgres"     "postgres.${NS}.svc.cluster.local" "5432"
 probe_api_egress
+probe_api_external_http
 
 kubectl -n "${NS}" delete pod "${ATTACKER_NAME}" --grace-period=0 --force >/dev/null 2>&1 || true
 log "summary -> ${OUT_CSV}"
