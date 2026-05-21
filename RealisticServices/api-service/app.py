@@ -33,9 +33,143 @@ DOWNSTREAM_REQUEST_DURATION_SECONDS = Histogram(
 )
 
 
+
 class CreateUserRequest(BaseModel):
     username: str
     email: EmailStr
+
+class ProductBase(BaseModel):
+    name: str
+    description: str | None = None
+    price: float
+
+class CreateProductRequest(ProductBase):
+    pass
+
+class UpdateProductRequest(ProductBase):
+    pass
+# ...existing code...
+
+# --- PRODUCT CRUD ENDPOINTS (proxy) ---
+
+@app.get("/products/{product_id}")
+def get_product(product_id: int, authorization: str | None = Header(default=None)) -> dict:
+    enforce_rate_limit()
+    claims = decode_token(authorization)
+    started = time.time()
+    try:
+        resp = requests.get(f"{DATA_SERVICE_URL}/products/{product_id}", timeout=3)
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=503, detail=f"data-service unavailable: {exc}")
+    finally:
+        DOWNSTREAM_REQUEST_DURATION_SECONDS.labels(
+            service="api-service",
+            downstream="data-service",
+            method="GET",
+            path="/products/{product_id}",
+        ).observe(time.time() - started)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    return resp.json()
+
+
+@app.get("/products")
+def list_products(limit: int = 50, offset: int = 0, authorization: str | None = Header(default=None)) -> dict:
+    enforce_rate_limit()
+    claims = decode_token(authorization)
+    started = time.time()
+    try:
+        resp = requests.get(
+            f"{DATA_SERVICE_URL}/products",
+            params={"limit": limit, "offset": offset},
+            timeout=3,
+        )
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=503, detail=f"data-service unavailable: {exc}")
+    finally:
+        DOWNSTREAM_REQUEST_DURATION_SECONDS.labels(
+            service="api-service",
+            downstream="data-service",
+            method="GET",
+            path="/products",
+        ).observe(time.time() - started)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    return resp.json()
+
+
+@app.post("/products")
+def create_product(payload: CreateProductRequest, authorization: str | None = Header(default=None)) -> dict:
+    enforce_rate_limit()
+    claims = decode_token(authorization)
+    started = time.time()
+    try:
+        resp = requests.post(
+            f"{DATA_SERVICE_URL}/products",
+            json=payload.dict(),
+            timeout=3,
+        )
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=503, detail=f"data-service unavailable: {exc}")
+    finally:
+        DOWNSTREAM_REQUEST_DURATION_SECONDS.labels(
+            service="api-service",
+            downstream="data-service",
+            method="POST",
+            path="/products",
+        ).observe(time.time() - started)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    return resp.json()
+
+
+@app.put("/products/{product_id}")
+def update_product(product_id: int, payload: UpdateProductRequest, authorization: str | None = Header(default=None)) -> dict:
+    enforce_rate_limit()
+    claims = decode_token(authorization)
+    started = time.time()
+    try:
+        resp = requests.put(
+            f"{DATA_SERVICE_URL}/products/{product_id}",
+            json=payload.dict(),
+            timeout=3,
+        )
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=503, detail=f"data-service unavailable: {exc}")
+    finally:
+        DOWNSTREAM_REQUEST_DURATION_SECONDS.labels(
+            service="api-service",
+            downstream="data-service",
+            method="PUT",
+            path="/products/{product_id}",
+        ).observe(time.time() - started)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    return resp.json()
+
+
+@app.delete("/products/{product_id}")
+def delete_product(product_id: int, authorization: str | None = Header(default=None)) -> dict:
+    enforce_rate_limit()
+    claims = decode_token(authorization)
+    started = time.time()
+    try:
+        resp = requests.delete(
+            f"{DATA_SERVICE_URL}/products/{product_id}",
+            timeout=3,
+        )
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=503, detail=f"data-service unavailable: {exc}")
+    finally:
+        DOWNSTREAM_REQUEST_DURATION_SECONDS.labels(
+            service="api-service",
+            downstream="data-service",
+            method="DELETE",
+            path="/products/{product_id}",
+        ).observe(time.time() - started)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    return resp.json()
 
 
 _rate_lock = Lock()

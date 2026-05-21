@@ -24,6 +24,20 @@ spec:
                 name: api-service
                 port:
                   number: 8080
+          - path: /users
+            pathType: Prefix
+            backend:
+              service:
+                name: api-service
+                port:
+                  number: 8080
+          - path: /products
+            pathType: Prefix
+            backend:
+              service:
+                name: api-service
+                port:
+                  number: 8080
           - path: /login
             pathType: Prefix
             backend:

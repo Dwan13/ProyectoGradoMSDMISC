@@ -370,6 +370,9 @@ PY
 
   if [[ "$CONTINUE_ON_READINESS_FAIL" == true ]]; then
     bench_cmd+=(--skip-precheck)
+  elif [[ "$control" == "C3" && "$variant" == "strict" ]]; then
+    log "C3/strict: skipping readiness gate because the strict policy intentionally blocks the profile probe"
+    bench_cmd+=(--skip-precheck)
   fi
 
   # set -e would terminate immediately on non-zero; temporarily disable it
@@ -379,7 +382,9 @@ PY
   local bench_rc=$?
   set -e
   if [[ "$bench_rc" -ne 0 ]]; then
-    if [[ "$CONTINUE_ON_READINESS_FAIL" == true ]]; then
+    if [[ "$bench_rc" -eq 99 ]]; then
+      log "benchmark returned code 99 (threshold failures); continuing campaign"
+    elif [[ "$CONTINUE_ON_READINESS_FAIL" == true ]]; then
       log "benchmark returned code ${bench_rc}; continuing due to --continue-on-readiness-fail"
     else
       return "$bench_rc"

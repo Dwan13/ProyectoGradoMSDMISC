@@ -32,9 +32,145 @@ DB_QUERY_DURATION_SECONDS = Histogram(
 )
 
 
+
 class CreateUserRequest(BaseModel):
     username: str
     email: EmailStr
+
+class ProductBase(BaseModel):
+    name: str
+    description: str | None = None
+    price: float
+
+class CreateProductRequest(ProductBase):
+    pass
+
+class UpdateProductRequest(ProductBase):
+    pass
+# ...existing code...
+
+# --- PRODUCT CRUD ENDPOINTS ---
+
+@app.get("/products/{product_id}")
+def get_product(product_id: int) -> dict:
+    started = time.time()
+    db_started = time.time()
+    try:
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT id, name, description, price, created_at FROM app_products WHERE id = %s",
+                    (product_id,),
+                )
+                row = cur.fetchone()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"database error: {exc}")
+    finally:
+        DB_QUERY_DURATION_SECONDS.labels(service="data-service", query_name="get_product_by_id").observe(
+            time.time() - db_started
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="product not found")
+    return {"data": row, "db_latency_ms": round((time.time() - started) * 1000.0, 3)}
+
+
+@app.get("/products")
+def list_products(limit: int = 50, offset: int = 0) -> dict:
+    started = time.time()
+    db_started = time.time()
+    safe_limit = max(1, min(limit, 500))
+    safe_offset = max(0, offset)
+    try:
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT id, name, description, price, created_at FROM app_products ORDER BY id LIMIT %s OFFSET %s",
+                    (safe_limit, safe_offset),
+                )
+                rows = cur.fetchall()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"database error: {exc}")
+    finally:
+        DB_QUERY_DURATION_SECONDS.labels(service="data-service", query_name="list_products").observe(
+            time.time() - db_started
+        )
+    return {
+        "data": rows,
+        "count": len(rows),
+        "limit": safe_limit,
+        "offset": safe_offset,
+        "db_latency_ms": round((time.time() - started) * 1000.0, 3),
+    }
+
+
+@app.post("/products")
+def create_product(payload: CreateProductRequest) -> dict:
+    started = time.time()
+    db_started = time.time()
+    try:
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "INSERT INTO app_products (name, description, price) VALUES (%s, %s, %s) RETURNING id, name, description, price, created_at",
+                    (payload.name, payload.description, payload.price),
+                )
+                row = cur.fetchone()
+            conn.commit()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"database error: {exc}")
+    finally:
+        DB_QUERY_DURATION_SECONDS.labels(service="data-service", query_name="create_product").observe(
+            time.time() - db_started
+        )
+    return {"data": row, "db_latency_ms": round((time.time() - started) * 1000.0, 3)}
+
+
+@app.put("/products/{product_id}")
+def update_product(product_id: int, payload: UpdateProductRequest) -> dict:
+    started = time.time()
+    db_started = time.time()
+    try:
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "UPDATE app_products SET name=%s, description=%s, price=%s WHERE id=%s RETURNING id, name, description, price, created_at",
+                    (payload.name, payload.description, payload.price, product_id),
+                )
+                row = cur.fetchone()
+            conn.commit()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"database error: {exc}")
+    finally:
+        DB_QUERY_DURATION_SECONDS.labels(service="data-service", query_name="update_product").observe(
+            time.time() - db_started
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="product not found")
+    return {"data": row, "db_latency_ms": round((time.time() - started) * 1000.0, 3)}
+
+
+@app.delete("/products/{product_id}")
+def delete_product(product_id: int) -> dict:
+    started = time.time()
+    db_started = time.time()
+    try:
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "DELETE FROM app_products WHERE id = %s RETURNING id",
+                    (product_id,),
+                )
+                row = cur.fetchone()
+            conn.commit()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"database error: {exc}")
+    finally:
+        DB_QUERY_DURATION_SECONDS.labels(service="data-service", query_name="delete_product").observe(
+            time.time() - db_started
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="product not found")
+    return {"deleted_id": row["id"], "db_latency_ms": round((time.time() - started) * 1000.0, 3)}
 
 
 @app.middleware("http")

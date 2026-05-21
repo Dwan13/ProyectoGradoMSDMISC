@@ -46,6 +46,34 @@ spec:
               number: 8080
     - match:
         - uri:
+            prefix: /users
+          method:
+            exact: GET
+      route:
+        - destination:
+            host: api-service.mubench-real.svc.cluster.local
+            port:
+              number: 8080
+    - match:
+        - uri:
+            prefix: /users
+          method:
+            exact: POST
+      route:
+        - destination:
+            host: api-service.mubench-real.svc.cluster.local
+            port:
+              number: 8080
+    - match:
+        - uri:
+            prefix: /products
+      route:
+        - destination:
+            host: api-service.mubench-real.svc.cluster.local
+            port:
+              number: 8080
+    - match:
+        - uri:
             exact: /login
           method:
             exact: POST

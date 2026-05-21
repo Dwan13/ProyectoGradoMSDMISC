@@ -223,10 +223,12 @@ setup_endpoints() {
       ;;
     C4)
       if [ "$TARGET_ENV" = "postgres-real" ]; then
-        AUTH_BASE="http://localhost:30184"
-        API_BASE="http://localhost:30181"
+        # C4 rate limiting is enforced at ingress, so benchmark traffic must
+        # traverse ingress instead of direct NodePort service endpoints.
+        AUTH_BASE="https://localhost/auth"
+        API_BASE="https://localhost/api"
         HOST_HEADER=""
-        INSECURE_TLS="false"
+        INSECURE_TLS="true"
         return 0
       fi
       # C4 igual a C2 (rate limiting no cambia endpoints)
