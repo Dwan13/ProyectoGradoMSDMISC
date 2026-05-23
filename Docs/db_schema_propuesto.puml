@@ -1,0 +1,46 @@
+@startuml db_schema_propuesto
+!theme plain
+hide circle
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontSize 11
+
+title muBench - Modelo Relacional Propuesto PostgreSQL
+
+entity "app_users" as app_users {
+  * id : SERIAL <<PK>>
+  --
+  * username : TEXT <<UNIQUE, NOT NULL>>
+  * email : TEXT <<UNIQUE, NOT NULL>>
+  * created_at : TIMESTAMPTZ <<NOT NULL, DEFAULT NOW()>>
+}
+
+entity "app_products" as app_products {
+  * id : SERIAL <<PK>>
+  --
+  * owner_user_id : INTEGER <<FK, NOT NULL>>
+  * name : VARCHAR(128) <<NOT NULL>>
+  description : TEXT <<NULL>>
+  * price : NUMERIC(10,2) <<NOT NULL>>
+  created_at : TIMESTAMP <<DEFAULT CURRENT_TIMESTAMP>>
+}
+
+app_users ||--o{ app_products : owns / creates
+
+note right of app_users
+  Entidad de usuarios de la aplicacion.
+  Conserva las restricciones UNIQUE sobre username y email.
+end note
+
+note right of app_products
+  Modelo propuesto para trazabilidad de autoria u ownership.
+  owner_user_id referencia app_users.id.
+end note
+
+note bottom
+  Este diagrama representa una evolucion del modelo actual.
+  Permite asociar cada producto con un usuario creador o propietario,
+  habilitando consultas, auditoria y control de acceso por recurso.
+end note
+
+@enduml

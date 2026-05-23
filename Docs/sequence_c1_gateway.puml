@@ -1,0 +1,71 @@
+@startuml sequence_c1_gateway
+!theme plain
+hide footbox
+skinparam shadowing false
+skinparam defaultFontSize 11
+
+title C1 - API Gateway / WAF (flujo de autenticacion y CRUD)
+
+actor Cliente as client
+participant "API Gateway\nnginx | Istio | Kong" as gw
+participant "auth-service" as auth
+participant "api-service" as api
+participant "data-service" as data
+database "PostgreSQL" as db
+
+== Login ==
+client -> gw: POST /login {username, password}
+
+alt baseline
+  note over gw
+    nginx-ingress expone el servicio.
+    No aplica WAF SQLi.
+  end note
+else istio
+  note over gw
+    Istio Gateway + filtro Lua WAF.
+    Inspecciona path/query/body antes del backend.
+  end note
+else kong
+  note over gw
+    Kong + plugin Lua WAF.
+    Inspecciona la peticion antes del backend.
+  end note
+end
+
+gw -> auth: POST /login
+auth --> gw: 200 JWT
+gw --> client: 200 JWT
+
+== CRUD autenticado ==
+client -> gw: POST /api/products\nAuthorization: Bearer JWT
+
+alt Payload SQLi detectado por WAF
+  gw --> client: 400/403 bloqueado
+else Peticion legitima
+  gw -> api: POST /products + JWT
+  note right of api
+    api-service no llama a auth-service.
+    Valida el JWT localmente.
+  end note
+  api -> api: decode_token()
+  api -> data: POST /products
+  data -> db: INSERT INTO app_products (...)
+  db --> data: fila creada
+  data --> api: 200 JSON
+  api --> gw: 200 JSON
+  gw --> client: 200 JSON
+end
+
+== Lectura de productos ==
+client -> gw: GET /api/products/{id}\nAuthorization: Bearer JWT
+gw -> api: GET /products/{id}
+api -> api: decode_token()
+api -> data: GET /products/{id}
+data -> db: SELECT ... FROM app_products WHERE id = ?
+db --> data: fila
+data --> api: 200 JSON
+api --> gw: 200 JSON
+gw --> client: 200 JSON
+
+@enduml

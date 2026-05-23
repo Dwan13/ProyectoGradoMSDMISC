@@ -21,6 +21,7 @@ const AUTH_URL = IS_HTTPS ? `${AUTH_BASE}/auth` : `${AUTH_BASE}`;
 const USERNAME = __ENV.USERNAME || 'demo';
 const PASSWORD = __ENV.PASSWORD || 'demo123';
 const HOST_HEADER = __ENV.HOST_HEADER || '';
+const THINK_TIME_S = Number(__ENV.THINK_TIME_S || 1);
 
 const loginTrend = new Trend('op_login_duration_ms');
 const createTrend = new Trend('op_create_duration_ms');
@@ -98,5 +99,5 @@ export default function () {
     deleteTrend.add(res.timings.duration);
     check(res, { 'delete product 200': (r) => r.status === 200 });
 
-    sleep(1);
+    sleep(THINK_TIME_S);
 }

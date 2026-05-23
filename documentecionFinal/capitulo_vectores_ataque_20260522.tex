@@ -1,0 +1,86 @@
+\chapter{Vectores de ataque y justificación metodológica}
+\label{cap:vectores-ataque-20260522}
+
+Este capítulo describe los vectores de ataque utilizados en la evaluación de seguridad, su relación con marcos de referencia reconocidos y la justificación metodológica de su selección. El propósito no fue construir una colección arbitraria de pruebas, sino asociar a cada control defensivo un vector coherente con la superficie de protección que dicho control declara cubrir. En consecuencia, la lógica experimental no consiste en aplicar el mismo ataque a todos los controles, sino en validar si cada familia de mecanismos responde a la clase de amenaza para la cual fue incorporada.
+
+La selección de vectores se apoyó en tres criterios. Primero, su relevancia respecto de OWASP Top 10 2021, en particular las categorías A01 (	extit{Broken Access Control}), A03 (	extit{Injection}), A05 (	extit{Security Misconfiguration}) y A07 (	extit{Identification and Authentication Failures}). Segundo, su trazabilidad a debilidades concretas del catálogo CWE, lo que permite defender la validez técnica de cada caso de prueba. Tercero, su ejecutabilidad y reproducibilidad en el entorno experimental disponible, evitando vectores que requieran compromisos previos no modelados o dependencias externas imposibles de controlar localmente.
+
+\section{Marco de referencia para la selección de ataques}
+
+Desde una perspectiva metodológica, la campaña de seguridad se diseñó como una validación dirigida por amenazas. Esto implica que cada control fue puesto en tensión frente a un vector representativo de la clase de riesgo que busca mitigar. Bajo esta lógica, C1 se evaluó con ataques de capa 7 orientados a validación e inspección de tráfico; C2 con acceso lateral no autenticado entre servicios; C3 con movimiento lateral y políticas de egreso; y C4 con abuso del plano de autenticación mediante múltiples intentos de acceso. Este enfoque evita comparaciones artificiales entre mecanismos heterogéneos y permite interpretar los hallazgos en términos de adecuación entre amenaza y defensa.
+
+La Tabla~\ref{tab:mapa-vectores-ataque} resume la relación entre control, vector, OWASP Top 10 y CWE principal.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Mapa de vectores de ataque y referencia técnica.}
+\label{tab:mapa-vectores-ataque}
+\begin{tabular}{p{1.0cm}p{3.1cm}p{3.2cm}p{2.5cm}p{3.0cm}}
+\toprule
+Control & Vector principal & Objetivo experimental & OWASP Top 10 2021 & CWE principal \\
+\midrule
+C1 & Inyección SQL (SQLi) & Evaluar capacidad de inspección y bloqueo en el gateway/WAF & A03: Injection & CWE-89 \\
+C2 & Acceso lateral no autenticado entre servicios & Evaluar autenticación mutua servicio a servicio & A07: Identification and Authentication Failures & CWE-287 \\
+C3 & Movimiento lateral y egreso no autorizado (P1--P4) & Evaluar segmentación interna y restricción de salida & A05: Security Misconfiguration / A01: Broken Access Control & CWE-923 / CWE-200 \\
+C4 & Credential stuffing & Evaluar mitigación de abuso del endpoint de autenticación & A07: Identification and Authentication Failures & CWE-307 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Justificación por control y por vector}
+
+\subsection{C1: Inyección SQL como validación de un gateway con WAF}
+
+El control C1 se enfocó en mecanismos de borde capaces de inspeccionar solicitudes HTTP y bloquear patrones maliciosos antes de que la petición alcance la lógica de negocio. Bajo esta premisa, el vector más representativo fue la inyección SQL, una familia clásica de la categoría OWASP A03:2021 y asociada a CWE-89. La elección es metodológicamente adecuada porque permite observar si el gateway realiza validación semántica del tráfico y si su filtrado ocurre antes de que el backend procese la solicitud.
+
+En la implementación experimental, este vector se ejecutó mediante payloads SQLi insertados en parámetros controlados por el usuario dentro del flujo CRUD. La medida de resultado fue directa: respuesta de bloqueo (400/403) versus paso del payload hacia el backend. Esta elección es defendible porque la inyección SQL no depende de efectos secundarios complejos ni de estados internos difíciles de observar; por tanto, el comportamiento del control puede evaluarse de manera reproducible y transparente.
+
+\subsection{C2: Acceso lateral no autenticado como validación de mTLS}
+
+El control C2 se diseñó para evaluar autenticación mutua entre servicios. En este contexto, el riesgo central no es la manipulación del payload HTTP, sino la posibilidad de que un pod sin identidad válida se comunique con un backend interno. Por ello, el vector seleccionado fue un intento de acceso lateral directo desde un pod atacante sin sidecar ni identidad mTLS hacia \texttt{data-service}. Esta amenaza se relaciona con OWASP A07:2021 y, a nivel de debilidad subyacente, con CWE-287, en tanto el problema a validar es la ausencia o presencia de autenticación fuerte entre entidades internas.
+
+La ventaja metodológica de este vector es que aísla el efecto del control. Si el acceso se permite, el mecanismo falla en su propósito esencial; si el acceso se bloquea antes de llegar al backend, la mitigación queda demostrada sin depender de interpretaciones ambiguas. En otras palabras, C2 no se evaluó por su capacidad de mejorar tiempos o de filtrar contenido, sino por su capacidad de impedir comunicación no autenticada dentro del clúster.
+
+\subsection{C3: Movimiento lateral y control de egreso mediante P1--P4}
+
+El control C3 fue el más sensible desde el punto de vista metodológico, porque una \texttt{NetworkPolicy} no protege un único recurso ni una sola operación, sino relaciones de conectividad entre componentes. Por esta razón, la validación no podía reducirse a un único probe. Se definieron cuatro probes complementarios, denominados P1--P4, con el objetivo de distinguir entre segmentación interna y restricción de egreso.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Probes del control C3 y función metodológica.}
+\label{tab:c3-probes-justificacion}
+\begin{tabular}{p{0.9cm}p{4.2cm}p{4.5cm}p{4.0cm}}
+\toprule
+Probe & Flujo evaluado & Riesgo representado & Justificación metodológica \\
+\midrule
+P1 & atacante $\rightarrow$ \texttt{data-service:8080/products} & Movimiento lateral hacia backend HTTP interno & Valida si la política impide saltar \texttt{api-service} y alcanzar un servicio de aplicación. \\
+P2 & atacante $\rightarrow$ \texttt{postgres:5432} & Movimiento lateral hacia base de datos & Valida si la política protege un activo crítico no expuesto por HTTP. \\
+P3 & \texttt{api-service} $\rightarrow$ \texttt{1.1.1.1:443} & Egreso genérico a Internet, independiente de DNS & Permite medir bloqueo de salida sin introducir el sesgo de resolución DNS o del comportamiento de una aplicación remota específica. \\
+P4 & \texttt{api-service} $\rightarrow$ \texttt{example.com:80} & Dependencia externa HTTP legítima & Permite cuantificar el costo operacional de una política estricta al bloquear una salida que no es maliciosa por sí misma. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La preocupación de que P3 y P4 parezcan ``amañados'' es razonable si no se explicita su función. Sin justificación, ambos probes podrían interpretarse como selecciones arbitrarias. Sin embargo, su inclusión responde a una necesidad metodológica clara. P3 usa \texttt{1.1.1.1:443} porque representa una conexión saliente genérica a Internet sobre TCP/443 sin depender de DNS. Esto reduce confusores: si la prueba fallara por problemas de resolución o por comportamiento variable de un host remoto, el resultado sería ambiguo. En cambio, una conexión TCP directa a una IP pública conocida permite verificar si la política permite o deniega egreso de manera más limpia.
+
+P4 cumple una función distinta y complementaria. Se eligió \texttt{example.com:80} como endpoint HTTP público y estable para modelar una dependencia externa legítima de muy bajo riesgo. La razón no fue ``forzar'' que \texttt{strict} bloquee algo fácil, sino medir el costo operacional de una política que restringe egreso. Si solo se probara P3, la lectura quedaría limitada a un caso de conectividad genérica. P4 añade una dimensión importante: muestra qué ocurre cuando una política estricta bloquea una salida razonable para una aplicación real, por ejemplo consultar una API pública, un servicio externo o una dependencia de integración. De este modo, C3 no solo mide capacidad de bloqueo, sino también pérdida potencial de funcionalidad.
+
+Desde esta perspectiva, P3 y P4 no son redundantes. P3 valida restricción técnica de egreso a nivel de red; P4 valida el impacto funcional de esa misma restricción sobre una dependencia de aplicación. Su coexistencia permite defender que la segmentación estricta no solo bloquea movimiento lateral, sino que también puede introducir costo operacional. Precisamente esa tensión entre seguridad y operatividad es uno de los hallazgos más valiosos del estudio.
+
+Dicho esto, también es importante reconocer la limitación. \texttt{example.com} y \texttt{1.1.1.1} son proxies experimentales de dos clases de salida, no la representación exhaustiva de todas las dependencias externas posibles. Por lo tanto, la tesis debe presentarlos como probes controlados de egreso, no como catálogo completo de amenazas de exfiltración. Esta formulación es honesta y metodológicamente robusta.
+
+\subsection{C4: Credential stuffing como validación de rate limiting}
+
+El control C4 se orientó a limitar abuso sobre el endpoint de autenticación. En este caso, el vector seleccionado fue \textit{credential stuffing}, vinculado a OWASP A07:2021 y a CWE-307. La lógica de selección es directa: un mecanismo de \textit{rate limiting} no se valida correctamente con tráfico CRUD común, sino con patrones repetitivos de autenticación que intentan forzar el backend a procesar múltiples credenciales en ráfaga.
+
+Este vector es defendible porque modela una amenaza ampliamente reconocida en sistemas expuestos a Internet, conserva reproducibilidad local y permite una métrica de éxito clara: proporción de respuestas 429 frente a intentos cursados. Además, separa adecuadamente dos planos de análisis: la capacidad de bloqueo del control y el costo que dicho bloqueo puede tener sobre tráfico legítimo cuando la política es demasiado agresiva.
+
+\section{Síntesis metodológica y criterio de validez}
+
+En conjunto, los vectores seleccionados cumplen una condición importante de validez experimental: cada uno tensiona directamente el mecanismo defensivo que se pretende evaluar. C1 se enfrenta a inspección semántica de entradas; C2 a autenticación entre servicios; C3 a conectividad lateral y de egreso; y C4 a abuso repetitivo del plano de autenticación. Esta correspondencia entre amenaza y defensa fortalece la interpretación causal de los resultados y evita que la evaluación se reduzca a un conjunto heterogéneo de pruebas sin fundamento común.
+
+La justificación de C3 merece enfatizarse en la versión final de la tesis, precisamente porque es el punto más propenso a objeción. La defensa correcta no es afirmar que P3 y P4 son ``ataques reales'' en el mismo sentido que SQLi o credential stuffing, sino explicar que son probes de conectividad diseñados para medir dos propiedades distintas de una política de red: bloqueo de egreso no autorizado y costo operacional sobre salidas legítimas. Expresado así, el diseño deja de parecer arbitrario y pasa a ser un instrumento analítico razonable para estudiar segmentación en microservicios.
+
+En consecuencia, la tesis puede sostener que la selección de vectores no fue oportunista ni ad hoc, sino guiada por marcos reconocidos de amenazas, por catálogos de debilidades técnicas y por la necesidad de aislar experimentalmente el efecto de cada control bajo estudio.

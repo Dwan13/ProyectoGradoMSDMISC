@@ -1,0 +1,249 @@
+\section{Resultados rigurosos: overhead CRUD y eficacia ante ataque}
+\label{sec:resultados-rigurosos-20260521}
+
+Esta seccion consolida los resultados defendibles de la campana formal ejecutada el 21 de mayo de 2026. Para evitar contaminacion metodologica, el analisis se separa en dos bloques: (i) overhead sobre trafico legitimo CRUD y (ii) eficacia de mitigacion frente a vectores de ataque especificos por control. Esta separacion es necesaria porque una respuesta de bloqueo en modo ataque no debe interpretarse como degradacion funcional del sistema, mientras que en modo CRUD la preservacion de trafico legitimo si es un criterio de validez.
+
+\subsection{Resultados de overhead sobre trafico CRUD}
+
+La Tabla~\ref{tab:crud-nonbaseline-means} resume las medias observadas para las alternativas no-baseline de cada control usando los artefactos de la campana preliminar coherente empleada para el analisis comparativo. Estas medias permiten responder cual alternativa no-baseline muestra mejor comportamiento por sigla en tiempos, eficiencia y consumo de recursos.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Medias CRUD por control y variante no-baseline.}
+\label{tab:crud-nonbaseline-means}
+\begin{tabular}{llrrrrrr}
+\toprule
+Control & Variante & avg\_ms & p95\_ms & err\_pct & rps & cpu\_mcores & mem\_mib \\
+\midrule
+C1 & istio        & 31.511 & 103.414 & 0.000 & 27.156 & 543.688 & 391.762 \\
+C1 & kong         & 34.722 & 131.214 & 0.000 & 26.344 & 504.725 & 373.050 \\
+C2 & istio\_mtls  & 23.604 & 47.149  & 0.000 & 28.395 & 510.775 & 363.862 \\
+C2 & linkerd\_mtls& 19.262 & 35.912  & 0.000 & 28.905 & 463.925 & 201.412 \\
+C3 & basic        & 32.906 & 140.823 & 0.000 & 26.528 & 525.250 & 696.238 \\
+C3 & strict       & 29.710 & 125.320 & 0.000 & 27.025 & 501.312 & 669.988 \\
+C4 & moderate     & 18.144 & 42.891  & 0.000 & 16.145 & 286.062 & 267.762 \\
+C4 & strict       & 4.502  & 7.012   & 74.332 & 2644.925 & 177.075 & 251.825 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La lectura de C4 requiere una advertencia metodologica explicita: la variante \texttt{strict} no debe presentarse como la mejor opcion de overhead, porque su aparente reduccion de latencia y CPU se obtiene junto con una alteracion sustancial del trafico legitimo (\texttt{err\_pct = 74.332\%}). En consecuencia, para C4 la comparacion descriptiva puede mostrarse, pero la inferencia sobre ``mejor overhead'' debe restringirse a la variante \texttt{moderate}, que preserva el trafico nominal con error nulo.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Mejor alternativa no-baseline por control y por familia de metricas en CRUD.}
+\label{tab:crud-best-by-metric}
+\begin{tabular}{llll}
+\toprule
+Control & Tiempos (avg/p95) & Capacidad (rps) & Eficiencia (CPU/Mem) \\
+\midrule
+C1 & istio & istio & kong \\
+C2 & linkerd\_mtls & linkerd\_mtls & linkerd\_mtls \\
+C3 & strict & strict & strict \\
+C4 & moderate\footnotemark & moderate\footnotemark & moderate\footnotemark \\
+\bottomrule
+\end{tabular}
+\end{table}
+\footnotetext{En C4 la conclusion es funcional y no puramente inferencial: \texttt{strict} no es comparable como mejor overhead porque rompe la preservacion del trafico CRUD legitimo.}
+
+Desde una perspectiva practica, los resultados CRUD muestran tres patrones claros. Primero, en C1 existe un trade-off real entre tiempo de respuesta y costo de recursos: \texttt{istio} ofrece mejor latencia y throughput, mientras \texttt{kong} consume menos CPU y memoria. Segundo, en C2 la alternativa \texttt{linkerd\_mtls} domina consistentemente a \texttt{istio\_mtls} en tiempos, capacidad y eficiencia. Tercero, en C3 la configuracion \texttt{strict} supera a \texttt{basic} en el subconjunto balanceado disponible, por lo que es la alternativa no-baseline mas favorable tanto en tiempos como en recursos. En C4, la conclusion valida para trafico legitimo es que \texttt{moderate} conserva mejor el CRUD nominal.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.48\textwidth]{../Testing/results/analysis_figures/overhead_metrics_20260521/c1_overhead_6metrics.png}
+\includegraphics[width=0.48\textwidth]{../Testing/results/analysis_figures/overhead_metrics_20260521/c2_overhead_6metrics.png}
+\\[0.5em]
+\includegraphics[width=0.48\textwidth]{../Testing/results/analysis_figures/overhead_metrics_20260521/c3_overhead_6metrics.png}
+\includegraphics[width=0.48\textwidth]{../Testing/results/analysis_figures/overhead_metrics_20260521/c4_overhead_6metrics.png}
+\caption{Vista consolidada de las seis metricas de overhead para C1--C4.}
+\label{fig:overhead-6metrics-all-controls}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.32\textwidth]{../Testing/results/analysis_figures/overhead_metrics_20260521/metric_avg_ms_by_control.png}
+\includegraphics[width=0.32\textwidth]{../Testing/results/analysis_figures/overhead_metrics_20260521/metric_p95_ms_by_control.png}
+\includegraphics[width=0.32\textwidth]{../Testing/results/analysis_figures/overhead_metrics_20260521/metric_rps_by_control.png}
+\\[0.5em]
+\includegraphics[width=0.32\textwidth]{../Testing/results/analysis_figures/overhead_metrics_20260521/metric_cpu_mcores_by_control.png}
+\includegraphics[width=0.32\textwidth]{../Testing/results/analysis_figures/overhead_metrics_20260521/metric_mem_mib_by_control.png}
+\includegraphics[width=0.32\textwidth]{../Testing/results/analysis_figures/overhead_metrics_20260521/metric_err_pct_by_control.png}
+\caption{Comparacion transversal de las seis metricas de overhead entre controles.}
+\label{fig:overhead-cross-metrics}
+\end{figure}
+
+\subsection{Resultados de eficacia ante ataque}
+
+La Tabla~\ref{tab:attack-mitigation-summary} resume la eficacia de mitigacion observada en la campana formal final para cada control. En este bloque, la variable de interes ya no es la latencia CRUD sino la tasa de mitigacion del vector de ataque correspondiente a cada sigla.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Resumen de mitigacion en escenarios de ataque por control y variante.}
+\label{tab:attack-mitigation-summary}
+\begin{tabular}{llrrrr}
+\toprule
+Control & Variante & Mitigation\_rate (\%) & Attempts & Blocked & Passed/Leaked \\
+\midrule
+C1 (SQLi) & baseline      & 0.000  & 114.000   & 0.000    & 114.000 \\
+C1 (SQLi) & istio         & 100.000 & 119.500  & 119.500  & 0.000 \\
+C1 (SQLi) & kong          & 100.000 & 119.500  & 119.500  & 0.000 \\
+C2 (mTLS) & baseline      & 0.000  & 100.000   & 0.000    & 100.000 \\
+C2 (mTLS) & istio\_mtls   & 100.000 & 100.000  & 100.000  & 0.000 \\
+C2 (mTLS) & linkerd\_mtls & 100.000 & 100.000  & 100.000  & 0.000 \\
+C3 (NetPol) & baseline    & 0.000  & 100.000   & 0.000    & 100.000 \\
+C3 (NetPol) & basic       & 50.000 & 100.000   & 50.000   & 50.000 \\
+C3 (NetPol) & strict      & 100.000 & 100.000  & 100.000  & 0.000 \\
+C4 (Rate Limit) & baseline & 0.000 & 56229.500 & 0.000    & 56229.500 \\
+C4 (Rate Limit) & moderate & 99.538 & 439355.500 & 437330.500 & 2025.000 \\
+C4 (Rate Limit) & strict   & 99.883 & 444945.750 & 444420.000 & 525.750 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Detalle de mitigacion para C3 por variante y probe.}
+\label{tab:c3-by-probe}
+\begin{tabular}{llrrr}
+\toprule
+Variante & Probe & Mitigation\_rate (\%) & Blocked & Passed \\
+\midrule
+baseline & P1 & 0.0   & 0.0   & 100.0 \\
+baseline & P2 & 0.0   & 0.0   & 100.0 \\
+baseline & P3 & 0.0   & 0.0   & 100.0 \\
+baseline & P4 & 0.0   & 0.0   & 100.0 \\
+basic    & P1 & 100.0 & 100.0 & 0.0 \\
+basic    & P2 & 100.0 & 100.0 & 0.0 \\
+basic    & P3 & 0.0   & 0.0   & 100.0 \\
+basic    & P4 & 0.0   & 0.0   & 100.0 \\
+strict   & P1 & 100.0 & 100.0 & 0.0 \\
+strict   & P2 & 100.0 & 100.0 & 0.0 \\
+strict   & P3 & 100.0 & 100.0 & 0.0 \\
+strict   & P4 & 100.0 & 100.0 & 0.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Los resultados de ataque permiten identificar la mejor alternativa por sigla cuando el criterio principal es la mitigacion. En C1, \texttt{istio} y \texttt{kong} empatan con mitigacion completa de SQLi. En C2, \texttt{istio\_mtls} y \texttt{linkerd\_mtls} tambien empatan con mitigacion completa del movimiento lateral sin autorizacion. En C3, \texttt{strict} es la mejor opcion global porque bloquea los cuatro probes, mientras que \texttt{basic} solo contiene los vectores internos P1 y P2. Finalmente, en C4 la mejor opcion defensiva es \texttt{strict}, aunque \texttt{moderate} ya alcanza un valor muy alto de 99.538\% y puede ser preferible si se busca menor agresividad operacional.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.9\textwidth]{../Testing/results/analysis_figures/attack_metrics_20260521/attack_overview_c1_c2_c4.png}
+\caption{Comparacion resumida de mitigacion para C1, C2 y C4 con puntos por replica.}
+\label{fig:attack-overview-c1-c2-c4}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.48\textwidth]{../Testing/results/analysis_figures/attack_metrics_20260521/c1_attack_mitigation.png}
+\includegraphics[width=0.48\textwidth]{../Testing/results/analysis_figures/attack_metrics_20260521/c2_attack_mitigation.png}
+\\[0.5em]
+\includegraphics[width=0.48\textwidth]{../Testing/results/analysis_figures/attack_metrics_20260521/c4_attack_mitigation.png}
+\includegraphics[width=0.48\textwidth]{../Testing/results/analysis_figures/attack_metrics_20260521/c3_attack_heatmap.png}
+\caption{Figuras de ataque por control: mitigacion por variante en C1, C2 y C4, y mapa de calor de C3 por variante y probe.}
+\label{fig:attack-figures-per-control}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.75\textwidth]{../Testing/results/analysis_figures/attack_metrics_20260521/c3_attack_probe_lines.png}
+\caption{Comparacion detallada de C3 por probe y variante.}
+\label{fig:c3-probe-lines}
+\end{figure}
+
+\subsection{Lectura analitica de las figuras de ataque}
+
+Las Figuras~\ref{fig:attack-overview-c1-c2-c4}, \ref{fig:attack-figures-per-control} y \ref{fig:c3-probe-lines} permiten defender visualmente tres hallazgos principales. Primero, en C1 y C2 la diferencia entre baseline y variantes endurecidas es absoluta: el baseline permanece en 0\% de mitigacion, mientras que las alternativas instrumentadas alcanzan 100\% en todas las replicas observadas. Esto indica que, bajo los vectores evaluados, el cambio de comportamiento no es marginal sino estructural.
+
+Segundo, C3 muestra el patron mas informativo desde el punto de vista arquitectonico. El mapa de calor y la figura por probe evidencian que \texttt{basic} no es una politica universal sino selectiva: bloquea completamente P1 y P2, pero no contiene P3 ni P4. En cambio, \texttt{strict} bloquea los cuatro probes con separacion completa respecto del baseline. Esta lectura es especialmente valiosa para la tesis porque demuestra que una politica de red puede ser parcialmente correcta para movimiento lateral interno y, al mismo tiempo, insuficiente frente a otras rutas de comunicacion.
+
+Tercero, en C4 ambas configuraciones de rate limiting son altamente efectivas, pero la ventaja de \texttt{strict} sobre \texttt{moderate} es incremental y no cualitativa. Visualmente, ambas barras quedan cercanas a 100\%, lo cual apoya una conclusion pragmatica: si el criterio dominante es maximizar bloqueo, \texttt{strict} es la mejor opcion; si el criterio es balancear mitigacion alta con menor agresividad operacional sobre trafico legitimo, \texttt{moderate} sigue siendo una alternativa tecnicamente defendible.
+
+En conjunto, estas figuras permiten argumentar que la campana de ataque no solo distingue entre ``mitiga'' y ``no mitiga'', sino que tambien discrimina entre mitigacion completa, mitigacion selectiva y mitigacion casi completa. Esa granularidad fortalece la interpretacion del estudio y evita presentar todos los controles como equivalentes solo porque varios alcanzan valores cercanos a 100\% en algun escenario.
+
+\subsection{Seleccion recomendada de figuras para resultados y anexos}
+
+Para el capitulo principal de resultados conviene priorizar las figuras que comunican contraste y estructura experimental con menor carga visual. En ese sentido, la Figura~\ref{fig:attack-overview-c1-c2-c4} debe mantenerse en el cuerpo principal porque resume de forma inmediata el contraste baseline versus variantes endurecidas en C1, C2 y C4. Tambien debe conservarse la vista de C3, preferiblemente mediante el mapa de calor incluido en la Figura~\ref{fig:attack-figures-per-control}, porque es la evidencia visual mas clara de que \texttt{basic} y \texttt{strict} no tienen el mismo alcance defensivo.
+
+La Figura~\ref{fig:c3-probe-lines} es util para discusion detallada, defensa oral o anexo tecnico, ya que muestra dispersion por replica y hace visible la selectividad de \texttt{basic}, pero introduce mas elementos graficos que los estrictamente necesarios para una lectura rapida del capitulo. Del mismo modo, las barras individuales de C1, C2 y C4 incluidas en la Figura~\ref{fig:attack-figures-per-control} pueden conservarse en anexos o en una subseccion complementaria si se desea trazabilidad completa por control.
+
+En terminos practicos, una seleccion solida para sustentacion y documento final es la siguiente: usar como figuras principales el resumen \textit{overview} de C1/C2/C4 y el heatmap de C3; dejar como soporte adicional las figuras individuales de C1, C2, C4 y la comparacion detallada de C3 por probe.
+
+\subsection{Resumen inferencial y limites de interpretacion}
+
+Las tablas anteriores responden al plano descriptivo. Para el plano inferencial se ejecutaron ANOVA separadas para overhead y para mitigacion. En ataque, el patron es de separacion casi perfecta entre variantes, por lo que los estadisticos F son extremadamente altos y los residuos practicamente nulos en C1, C2 y C3. Esto no invalida el hallazgo; al contrario, indica diferenciacion completa en la tasa de mitigacion bajo el diseno experimental ejecutado. En C4, donde existe variacion residual observable, la inferencia sigue siendo convencional y tambien favorece una diferencia fuerte entre variantes.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Resumen ANOVA de ataque.}
+\label{tab:attack-anova-summary}
+\begin{tabular}{llrr}
+\toprule
+Control & Efecto evaluado & F & p-valor \\
+\midrule
+C1 & Variante sobre SQLi mitigation & $6.77 \times 10^{30}$ & $< 0.001$ \\
+C2 & Variante sobre mitigation & $2.36 \times 10^{30}$ & $< 0.001$ \\
+C3 & Variante sobre mitigation & $5.21 \times 10^{29}$ & $< 0.001$ \\
+C3 & Probe sobre mitigation & $5.78 \times 10^{28}$ & $< 0.001$ \\
+C3 & Variante $\times$ Probe & $5.78 \times 10^{28}$ & $< 0.001$ \\
+C4 & Variante sobre CredStuff mitigation & 2080315.265 & $< 0.001$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Para overhead CRUD, solo se consideran inferencialmente defendibles los subconjuntos balanceados disponibles de C1, C2 y C3 usando VUS $\in \{1,10\}$ y cuatro replicas por celda. En C4 no se recomienda presentar ANOVA de overhead como evidencia fuerte, debido a que la propia politica modifica el trafico legitimo y rompe la comparabilidad funcional.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Resumen ANOVA de overhead sobre subconjuntos balanceados.}
+\label{tab:overhead-anova-summary}
+\begin{tabular}{llll}
+\toprule
+Control & Metrica & Efecto principal significativo & p-valor \\
+\midrule
+C1 & avg\_ms & Carga (VUS) & 0.033 \\
+C1 & rps & Carga (VUS) & $< 0.001$ \\
+C1 & cpu\_mcores & Carga (VUS) & $< 0.001$ \\
+C2 & rps & Carga (VUS) & $< 0.001$ \\
+C2 & cpu\_mcores & Carga (VUS) & $< 0.001$ \\
+C2 & mem\_mib & Variante & $< 0.001$ \\
+C3 & avg\_ms & Variante y Carga & 0.008 / 0.003 \\
+C3 & p95\_ms & Variante y Carga & 0.046 / 0.001 \\
+C3 & rps & Variante y Carga & 0.048 / $< 0.001$ \\
+C3 & cpu\_mcores & Variante y Carga & 0.030 / $< 0.001$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Matriz de decision: que puede afirmarse con contundencia}
+
+Una conclusion de nivel maestria no consiste en forzar un ganador unico en todos los casos, sino en distinguir con precision entre tres situaciones: (i) controles con ganador claro y estadisticamente defendible, (ii) controles con empate tecnico en el criterio principal, y (iii) controles donde no existe un mejor universal porque el objetivo defensivo y la preservacion funcional entran en conflicto. Bajo esa regla, la evidencia de esta campana permite emitir las afirmaciones de la Tabla~\ref{tab:decision-matrix-rigorous}.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Matriz de decision rigurosa por control.}
+\label{tab:decision-matrix-rigorous}
+\begin{tabular}{p{1.1cm}p{2.8cm}p{2.8cm}p{4.2cm}p{3.6cm}}
+\toprule
+Sigla & Mejor en defensa & Mejor en overhead & Fuerza de la afirmacion & Justificacion defendible \\
+\midrule
+C1 & Empate: \texttt{istio} = \texttt{kong} & No hay ganador inferencial unico & Empate tecnico en seguridad; diferencia descriptiva en desempeno & Ambos mitigan SQLi al 100\% y la ANOVA de ataque confirma diferencia frente a baseline. Sin embargo, en overhead CRUD no hay efecto significativo de variante en \texttt{avg\_ms}, \texttt{p95\_ms}, \texttt{rps}, \texttt{cpu\_mcores} ni \texttt{mem\_mib} ($p > 0.27$ en todos los casos). \texttt{Istio} muestra mejor latencia descriptiva; \texttt{Kong} mejor eficiencia de recursos. \\
+C2 & Empate: \texttt{istio\_mtls} = \texttt{linkerd\_mtls} & \texttt{linkerd\_mtls} & Ganador claro global: \texttt{linkerd\_mtls} & En ataque, ambas variantes alcanzan 100\% de mitigacion del movimiento lateral. En overhead, \texttt{linkerd\_mtls} domina descriptivamente en latencia, throughput, CPU y memoria, y la diferencia por variante es estadisticamente significativa en memoria ($p < 0.001$). Por tanto, si la seguridad es equivalente, la mejor alternativa global es \texttt{linkerd\_mtls}. \\
+C3 & \texttt{strict} & \texttt{strict} & Ganador claro y robusto: \texttt{strict} & En ataque, \texttt{strict} bloquea P1--P4, mientras \texttt{basic} solo bloquea P1--P2. En overhead CRUD, la variante es significativa en \texttt{avg\_ms} ($p=0.008$), \texttt{p95\_ms} ($p=0.046$), \texttt{rps} ($p=0.048$) y \texttt{cpu\_mcores} ($p=0.030$), con medias favorables para \texttt{strict}. Es el caso mas contundente del estudio. \\
+C4 & \texttt{strict} & \texttt{moderate} para trafico legitimo & No existe ganador universal; depende del objetivo & En ataque, \texttt{strict} supera a \texttt{moderate} (99.883\% vs 99.538\% de mitigacion) y la ANOVA confirma diferencias fuertes entre variantes. Pero en overhead CRUD no es metodologicamente valido declarar \texttt{strict} como mejor, porque rompe la preservacion funcional (\texttt{err\_pct = 74.332\%}). Si el objetivo es maximo bloqueo, gana \texttt{strict}; si el objetivo es conservar servicio legitimo, gana \texttt{moderate}. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La Tabla~\ref{tab:decision-matrix-rigorous} permite formular una conclusion mas fuerte y mas honesta que una simple lista de medias. La campana no sostiene que exista un mejor absoluto para todo; sostiene algo mas util y mas defendible. Primero, \texttt{linkerd\_mtls} en C2 y \texttt{strict} en C3 son las dos recomendaciones mas fuertes del estudio, porque combinan eficacia defensiva con mejor o igual comportamiento operativo. Segundo, C1 no ofrece evidencia suficiente para proclamar un ganador unico entre \texttt{istio} y \texttt{kong}; lo correcto es reportar empate tecnico en seguridad con trade-off operacional. Tercero, C4 obliga a explicitar el criterio de optimizacion, porque maximizar mitigacion y preservar trafico legitimo no llevan a la misma respuesta.
+
+Si se exige una sintesis ejecutiva en una sola frase, la conclusion rigurosa es la siguiente: \textit{\texttt{linkerd\_mtls} es la mejor opcion para C2, \texttt{strict} es la mejor opcion para C3, C1 termina en empate tecnico entre \texttt{istio} y \texttt{kong}, y C4 no admite un ganador universal porque \texttt{strict} maximiza defensa mientras \texttt{moderate} preserva mejor el servicio legitimo}. Esa formulacion es mas valida para nivel maestria que forzar artificialmente una jerarquia total donde los datos no la sostienen.
+
+En sintesis, el overhead CRUD y la eficacia defensiva no apuntan siempre al mismo ganador, y ese es precisamente uno de los hallazgos mas importantes del estudio. \texttt{Linkerd\_mtls} y \texttt{strict} en C3 son dominantes tanto en costo operativo como en defensa, pero C1 exhibe un trade-off autentico entre rendimiento y eficiencia de recursos, mientras C4 obliga a separar con claridad la pregunta de preservacion funcional de la pregunta de mitigacion agresiva. Esta separacion fortalece la validez del estudio, evita conclusiones contaminadas y produce una base mas defendible para tesis y sustentacion.

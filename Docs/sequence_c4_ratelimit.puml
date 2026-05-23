@@ -1,0 +1,77 @@
+@startuml sequence_c4_ratelimit
+!theme plain
+hide footbox
+skinparam shadowing false
+skinparam defaultFontSize 11
+
+title C4 - Rate Limiting en Kong (login y acceso a API)
+
+actor Cliente as client
+participant "Kong Gateway" as kong
+participant "auth-service" as auth
+participant "api-service" as api
+participant "data-service" as data
+database "PostgreSQL" as db
+
+== Login ==
+client -> kong: POST /login {username, password}
+
+alt baseline
+  note over kong
+    Sin plugin de rate limit.
+  end note
+else moderate
+  note over kong
+    Plugin ratelimit-moderate.
+    Umbral permisivo para trafico legitimo.
+  end note
+else strict
+  note over kong
+    Plugin ratelimit-strict.
+    Umbral mas agresivo.
+  end note
+end
+
+alt cuota disponible
+  kong -> auth: POST /login
+  auth --> kong: 200 JWT o 401 invalid credentials
+  kong --> client: respuesta auth-service
+else cuota excedida
+  kong --> client: 429 Too Many Requests
+end
+
+== Acceso posterior a CRUD ==
+client -> kong: GET /api/products\nAuthorization: Bearer JWT
+
+alt cuota disponible
+  kong -> api: GET /products
+  api -> api: decode_token()
+  api -> data: GET /products
+  data -> db: SELECT ... FROM app_products
+  db --> data: filas
+  data --> api: 200 JSON
+  api --> kong: 200 JSON
+  kong --> client: 200 JSON
+else cuota excedida
+  kong --> client: 429 Too Many Requests
+end
+
+== Credential stuffing evaluado ==
+loop multiples intentos de login
+  client -> kong: POST /login con credenciales comunes
+  alt baseline
+    kong -> auth: reenvia todas las peticiones
+    auth --> kong: 401 o eventual 200
+    kong --> client: respuesta backend
+  else moderate o strict
+    alt antes del umbral
+      kong -> auth: reenvia
+      auth --> kong: 401
+      kong --> client: 401
+    else despues del umbral
+      kong --> client: 429 bloqueado por rate limit
+    end
+  end
+end
+
+@enduml

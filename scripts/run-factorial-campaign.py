@@ -51,6 +51,12 @@ K6_PROFILES = {
     "attack_credstuff": ROOT / "k6" / "attack_credstuff.js",
 }
 
+CRUD_REQUESTS_PER_ITERATION = 6
+C4_RATE_LIMITS_RPM = {
+    "moderate": 1200,
+    "strict": 300,
+}
+
 # Diseño factorial: 12 escenarios
 SCENARIOS = [
     ("C1", "baseline"), ("C1", "istio"),       ("C1", "kong"),
@@ -88,8 +94,19 @@ def apply_scenario(control: str, variant: str) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 # Ejecución k6
 # ─────────────────────────────────────────────────────────────────────────────
+def build_profile_env(profile: str, control: str, variant: str, vus: int) -> dict:
+    if profile != "crud" or control != "C4" or variant not in C4_RATE_LIMITS_RPM:
+        return {}
+
+    limit_rps = C4_RATE_LIMITS_RPM[variant] / 60.0
+    target_rps = limit_rps * 0.7
+    iteration_s = (CRUD_REQUESTS_PER_ITERATION * vus) / target_rps
+    think_time_s = max(1.0, round(iteration_s, 2))
+    return {"THINK_TIME_S": str(think_time_s)}
+
+
 def run_k6(env: dict, vus: int, duration_s: int, summary_path: Path,
-           script: Path) -> tuple[bool, str]:
+           script: Path, extra_env: dict | None = None) -> tuple[bool, str, str]:
     cmd = [
         "k6", "run",
         "--vus", str(vus),
@@ -107,8 +124,14 @@ def run_k6(env: dict, vus: int, duration_s: int, summary_path: Path,
         "USERNAME": "demo",
         "PASSWORD": "demo123",
     })
+    if extra_env:
+        proc_env.update(extra_env)
     res = subprocess.run(cmd, env=proc_env, capture_output=True, text=True)
-    return (res.returncode == 0, res.stderr[-2000:] if res.returncode != 0 else "")
+    return (
+        res.returncode == 0,
+        res.stdout or "",
+        res.stderr[-2000:] if res.returncode != 0 else "",
+    )
 
 
 def parse_k6_summary(p: Path) -> dict:
@@ -153,6 +176,49 @@ def parse_k6_summary(p: Path) -> dict:
         "rps": round(rps, 2),
         "iterations": int(iters),
         "checks_pct": round(chk_pct, 2),
+    }
+
+
+def parse_attack_summary(profile: str, summary_path: Path) -> dict:
+    """Extrae métricas específicas desde el summary-export JSON de k6."""
+    if not summary_path.exists():
+        return {}
+
+    try:
+        payload = json.loads(summary_path.read_text())
+    except Exception:
+        return {}
+
+    metrics = payload.get("metrics", {})
+
+    if profile == "attack_sqli":
+        attempts = int(metrics.get("sqli_attempts_total", {}).get("count", 0) or 0)
+        blocked = int(metrics.get("sqli_blocked_total", {}).get("count", 0) or 0)
+        leaked = int(metrics.get("sqli_leaked_total", {}).get("count", 0) or 0)
+        other = int(metrics.get("sqli_other_total", {}).get("count", 0) or 0)
+        mitigation = round((blocked * 100.0 / attempts), 2) if attempts > 0 else 0.0
+        return {
+            "sqli_attempts_total": attempts,
+            "sqli_blocked_total": blocked,
+            "sqli_leaked_total": leaked,
+            "sqli_other_total": other,
+            "sqli_mitigation_rate": mitigation,
+        }
+
+    if profile != "attack_credstuff":
+        return {}
+
+    attempts = int(metrics.get("credstuff_attempts_total", {}).get("count", 0) or 0)
+    ratelimited = int(metrics.get("credstuff_ratelimited_total", {}).get("count", 0) or 0)
+    unauthorized = int(metrics.get("credstuff_unauthorized_total", {}).get("count", 0) or 0)
+    success = int(metrics.get("credstuff_success_total", {}).get("count", 0) or 0)
+    mitigation = round((ratelimited * 100.0 / attempts), 2) if attempts > 0 else 0.0
+    return {
+        "credstuff_attempts_total": attempts,
+        "credstuff_ratelimited_total": ratelimited,
+        "credstuff_unauthorized_total": unauthorized,
+        "credstuff_success_total": success,
+        "credstuff_mitigation_rate": mitigation,
     }
 
 
@@ -207,6 +273,21 @@ def build_plan(scenarios, vus_levels, replicas, seed):
     return plan
 
 
+def build_plan_for_replica_range(scenarios, vus_levels, replica_start, replica_end, seed):
+    """
+    Igual que build_plan(), pero ejecuta solo un rango explícito de réplicas.
+    Esto permite partir una campaña grande en bloques pequeños sin perder los
+    IDs reales de réplica del diseño experimental final.
+    """
+    rng = random.Random(seed)
+    plan = []
+    for r in range(replica_start, replica_end + 1):
+        block = [(c, v, vus, r) for (c, v) in scenarios for vus in vus_levels]
+        rng.shuffle(block)
+        plan.extend(block)
+    return plan
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
@@ -214,6 +295,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--vus", nargs="+", type=int, default=[1, 5, 10, 20])
     ap.add_argument("--replicas", type=int, default=8)
+    ap.add_argument("--replica-start", type=int, default=None,
+                    help="primera réplica a ejecutar (para correr por bloques)")
+    ap.add_argument("--replica-end", type=int, default=None,
+                    help="última réplica a ejecutar (para correr por bloques)")
     ap.add_argument("--duration", type=int, default=60, help="seg de carga por run")
     ap.add_argument("--warmup", type=int, default=15, help="seg estabilización pre-run")
     ap.add_argument("--out-dir", default=None)
@@ -237,10 +322,27 @@ def main():
         wanted = {tuple(s.split("/")) for s in args.scenarios}
         scenarios = [s for s in SCENARIOS if s in wanted]
 
-    plan = build_plan(scenarios, args.vus, args.replicas, args.seed)
+    if (args.replica_start is None) != (args.replica_end is None):
+        log("--replica-start y --replica-end deben usarse juntos", "ERROR")
+        sys.exit(2)
+
+    if args.replica_start is not None:
+        if args.replica_start < 1 or args.replica_end < args.replica_start:
+            log("rango de réplicas inválido", "ERROR")
+            sys.exit(2)
+        replica_count = args.replica_end - args.replica_start + 1
+        plan = build_plan_for_replica_range(
+            scenarios, args.vus, args.replica_start, args.replica_end, args.seed
+        )
+        replica_label = f"réplicas {args.replica_start}-{args.replica_end}"
+    else:
+        replica_count = args.replicas
+        plan = build_plan(scenarios, args.vus, args.replicas, args.seed)
+        replica_label = f"{args.replicas} réplicas"
+
     total = len(plan)
     log(f"Plan: {len(scenarios)} escenarios × {len(args.vus)} cargas × "
-        f"{args.replicas} réplicas = {total} runs")
+        f"{replica_label} = {total} runs")
     log(f"Estimado: ~{total * (args.duration + args.warmup + 5) / 60:.1f} min "
         f"(asumiendo {args.duration}s + {args.warmup}s + overhead)")
 
@@ -262,7 +364,13 @@ def main():
     cols = [
         "run_id", "started_at", "profile", "control", "variant", "vus", "replica",
         "avg_ms", "p95_ms", "err_pct", "rps", "cpu_mcores", "mem_mib",
-        "checks_pct", "iterations", "duration_s", "status", "error",
+        "checks_pct", "iterations",
+        "sqli_attempts_total", "sqli_blocked_total", "sqli_leaked_total",
+        "sqli_other_total", "sqli_mitigation_rate",
+        "credstuff_attempts_total", "credstuff_ratelimited_total",
+        "credstuff_unauthorized_total", "credstuff_success_total",
+        "credstuff_mitigation_rate",
+        "duration_s", "status", "error",
     ]
     with csv_path.open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=cols)
@@ -283,6 +391,12 @@ def main():
                 "control": control, "variant": variant, "vus": vus, "replica": replica,
                 "avg_ms": "", "p95_ms": "", "err_pct": "", "rps": "",
                 "cpu_mcores": "", "mem_mib": "", "checks_pct": "", "iterations": "",
+                "sqli_attempts_total": "", "sqli_blocked_total": "",
+                "sqli_leaked_total": "", "sqli_other_total": "",
+                "sqli_mitigation_rate": "",
+                "credstuff_attempts_total": "", "credstuff_ratelimited_total": "",
+                "credstuff_unauthorized_total": "", "credstuff_success_total": "",
+                "credstuff_mitigation_rate": "",
                 "duration_s": args.duration, "status": "fail", "error": "",
             }
             try:
@@ -292,13 +406,17 @@ def main():
                     log(f"  scenario applied: API={last_env.get('API_URL')}", "DEBUG")
                     time.sleep(args.warmup)
                 summary = out_dir / f"{run_id}_summary.json"
-                ok, err = run_k6(last_env, vus, args.duration, summary, k6_script)
+                extra_env = build_profile_env(args.profile, control, variant, vus)
+                if extra_env:
+                    log(f"  pacing env: {extra_env}", "DEBUG")
+                ok, stdout, err = run_k6(last_env, vus, args.duration, summary, k6_script, extra_env)
                 m = parse_k6_summary(summary)
+                custom = parse_attack_summary(args.profile, summary)
                 res = collect_resources()
-                row.update(m); row.update(res)
+                row.update(m); row.update(custom); row.update(res)
                 # En attack_sqli el WAF responde 4xx legítimamente → checks_pct
                 # baja (esperado). No usar checks_pct como gate de éxito.
-                if args.profile == "attack_sqli":
+                if args.profile in {"attack_sqli", "attack_credstuff"}:
                     row["status"] = "ok" if ok else "fail"
                 else:
                     row["status"] = "ok" if ok and m.get("checks_pct", 0) >= 80 else "fail"
@@ -311,7 +429,11 @@ def main():
             w.writerow(row); f.flush()
             log(f"  {row['status']}  avg={row['avg_ms']}  p95={row['p95_ms']}  "
                 f"rps={row['rps']}  cpu={row['cpu_mcores']}  mem={row['mem_mib']}  "
-                f"err%={row['err_pct']}")
+                f"err%={row['err_pct']}"
+                     + (f"  sqli_mitig%={row['sqli_mitigation_rate']}"
+                         if args.profile == "attack_sqli" else "")
+                + (f"  credstuff_mitig%={row['credstuff_mitigation_rate']}"
+                   if args.profile == "attack_credstuff" else ""))
 
     log(f"Campaña terminada: {csv_path}")
 

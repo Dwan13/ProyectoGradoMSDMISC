@@ -7,7 +7,7 @@
 // (token robado, insider, account takeover).
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { Trend } from 'k6/metrics';
+import { Counter, Trend } from 'k6/metrics';
 
 export let options = {
     vus: Number(__ENV.VUS || 1),
@@ -32,6 +32,13 @@ const readTrend = new Trend('op_read_duration_ms');
 const updateTrend = new Trend('op_update_duration_ms');
 const listTrend = new Trend('op_list_duration_ms');
 const deleteTrend = new Trend('op_delete_duration_ms');
+
+// C1 mide mitigación SQLi a nivel gateway. Solo contamos probes que en baseline
+// deberían pasar normalmente y en WAF deberían bloquearse de forma explícita.
+const sqliAttemptsTotal = new Counter('sqli_attempts_total');
+const sqliBlockedTotal = new Counter('sqli_blocked_total');
+const sqliLeakedTotal = new Counter('sqli_leaked_total');
+const sqliOtherTotal = new Counter('sqli_other_total');
 
 // Payloads SQLi — subset OWASP CRS REQUEST-942 (mismas categorías que el WAF Lua).
 // 12 patrones lógicos rotativos; cubren UNION/tautology/stacked/time-based/
@@ -70,6 +77,17 @@ function getToken() {
     return res.json('access_token');
 }
 
+function recordSqliOutcome(res) {
+    sqliAttemptsTotal.add(1);
+    if (res.status === 400 || res.status === 403) {
+        sqliBlockedTotal.add(1);
+    } else if (res.status >= 200 && res.status < 300) {
+        sqliLeakedTotal.add(1);
+    } else {
+        sqliOtherTotal.add(1);
+    }
+}
+
 export default function () {
     const token = getToken();
     if (!token) return;
@@ -86,6 +104,7 @@ export default function () {
     });
     let res = http.post(`${API_URL}/products`, createPayload, authHeaders);
     createTrend.add(res.timings.duration);
+    recordSqliOutcome(res);
     // El check pasa si el sistema RESPONDIÓ (independiente de bloqueo).
     // err_pct (http_req_failed) ya distinguirá: 4xx WAF vs 2xx pass-through.
     check(res, { 'create handled': (r) => r.status >= 200 && r.status < 600 });
@@ -117,6 +136,7 @@ export default function () {
     // LIST — inyección en query string
     res = http.get(`${API_URL}/products?search=${sqliEnc}`, authHeaders);
     listTrend.add(res.timings.duration);
+    recordSqliOutcome(res);
     check(res, { 'list handled': (r) => r.status >= 200 && r.status < 600 });
 
     // DELETE — inyección en path

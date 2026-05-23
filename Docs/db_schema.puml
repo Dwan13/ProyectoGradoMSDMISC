@@ -1,12 +1,44 @@
-@startuml
-entity "API Service" as api
-entity "Auth Service" as auth
-entity "Data Service" as data
-entity "Postgres DB" as db
+@startuml db_schema
+!theme plain
+hide circle
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontSize 11
 
-api -- db : "writes/reads"
-auth -- db : "reads"
-data -- db : "reads"
-api -- auth : "auth checks"
-api -- data : "data fetch"
+title muBench - Modelo Relacional PostgreSQL
+
+entity "app_users" as app_users {
+	* id : SERIAL <<PK>>
+	--
+	* username : TEXT <<UNIQUE, NOT NULL>>
+	* email : TEXT <<UNIQUE, NOT NULL>>
+	* created_at : TIMESTAMPTZ <<NOT NULL, DEFAULT NOW()>>
+}
+
+entity "app_products" as app_products {
+	* id : SERIAL <<PK>>
+	--
+	* name : VARCHAR(128) <<NOT NULL>>
+	description : TEXT <<NULL>>
+	* price : NUMERIC(10,2) <<NOT NULL>>
+	created_at : TIMESTAMP <<DEFAULT CURRENT_TIMESTAMP>>
+}
+
+note right of app_users
+	Tabla creada por los init scripts de PostgreSQL.
+	Tiene restricciones UNIQUE en username y email.
+	En el namespace realistic se precargan usuarios demo.
+end note
+
+note right of app_products
+	Tabla creada por el init script y por la migracion del data-service.
+	No existe FK hacia app_users en la implementacion actual.
+end note
+
+note bottom
+	El modelo relacional real usado por la aplicacion contiene dos tablas
+	independientes. auth-service emite JWT stateless y no persiste sesiones,
+	por lo que no existe una tabla sessions en la implementacion actual.
+end note
+
 @enduml

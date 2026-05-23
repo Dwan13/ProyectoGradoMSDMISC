@@ -1,0 +1,62 @@
+@startuml sequence_c2_mtls
+!theme plain
+hide footbox
+skinparam shadowing false
+skinparam defaultFontSize 11
+
+title C2 - mTLS entre microservicios (flujo legitimo y control de acceso)
+
+actor Cliente as client
+participant "auth-service" as auth
+participant "api-service" as api
+participant "sidecar api\nIstio/Linkerd" as api_sc
+participant "sidecar data\nIstio/Linkerd" as data_sc
+participant "data-service" as data
+database "PostgreSQL" as db
+participant "Pod atacante\nsin sidecar" as attacker
+
+== Login publico ==
+client -> auth: POST /login {username, password}
+auth --> client: 200 JWT
+
+== Llamada legitima ==
+client -> api: GET /users\nAuthorization: Bearer JWT
+api -> api: decode_token()
+api -> api_sc: HTTP GET /users
+api_sc -> data_sc: mTLS handshake + HTTP GET /users
+
+alt identidad mTLS autorizada
+  data_sc -> data: GET /users
+  data -> db: SELECT ... FROM app_users
+  db --> data: filas
+  data --> data_sc: 200 JSON
+  data_sc --> api_sc: 200 JSON (mTLS)
+  api_sc --> api: 200 JSON
+  api --> client: 200 JSON
+else identidad rechazada
+  data_sc --> api_sc: 403/denied
+  api_sc --> api: error
+  api --> client: 503/403
+end
+
+== Vector de ataque evaluado ==
+attacker -> data_sc: GET /products\n(sin sidecar, sin identidad)
+
+alt baseline
+  note over data_sc
+    Sin mesh estricto.
+    El backend queda alcanzable.
+  end note
+  data_sc -> data: GET /products
+  data -> db: SELECT ... FROM app_products
+  db --> data: filas
+  data --> attacker: 200 datos expuestos
+else istio_mtls o linkerd_mtls
+  note over data_sc
+    Se exige identidad del mesh.
+    El pod atacante no cumple la policy.
+  end note
+  data_sc --> attacker: bloqueado
+end
+
+@enduml

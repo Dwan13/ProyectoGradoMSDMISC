@@ -1,0 +1,30 @@
+\section{Vectores de ataque evaluados por control}
+\label{sec:vectores-ataque-20260521}
+
+Esta seccion resume los vectores de ataque empleados en la campana formal para cada control de seguridad. El objetivo no fue reutilizar un mismo ataque para todas las siglas, sino seleccionar un vector coherente con la superficie de defensa que cada control declara proteger. Por ello, C1 se evaluo con inyeccion SQL a nivel de gateway, C2 y C3 con movimiento lateral y restricciones de comunicacion intra-cluster, y C4 con \textit{credential stuffing} sobre el plano de autenticacion.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Vectores de ataque utilizados en cada control experimental.}
+\label{tab:vectores-ataque-por-control}
+\begin{tabular}{p{0.08\textwidth}p{0.18\textwidth}p{0.23\textwidth}p{0.23\textwidth}p{0.18\textwidth}}
+\toprule
+Control & Vector & Implementacion & Objetivo del ataque & Criterio de mitigacion \\
+\midrule
+C1 & SQL Injection (SQLi) & \texttt{k6/attack\_sqli.js} & Inyectar payloads SQLi en entradas controladas por el usuario dentro del flujo CRUD expuesto por el gateway/WAF. & Solicitudes bloqueadas con 400/403; respuestas 2xx se consideran fuga o paso del ataque. \\
+
+C2 & Movimiento lateral sin identidad mTLS & \texttt{scripts/c2\_lateral\_movement.sh} & Desplegar un pod atacante sin sidecar ni identidad mTLS e intentar acceso directo a \texttt{data-service}. & El ataque se considera mitigado cuando el acceso al backend no obtiene HTTP 200. \\
+
+C3 & Movimiento lateral y egress no autorizado & \texttt{scripts/c3\_lateral\_movement.sh} & Ejecutar cuatro probes: P1 atacante a \texttt{data-service}, P2 atacante a \texttt{postgres}, P3 \texttt{api-service} a \texttt{1.1.1.1:443}, y P4 \texttt{api-service} a \texttt{example.com:80}. & El ataque se considera mitigado cuando la conexion o solicitud no completa exitosamente. \\
+
+C4 & Credential Stuffing & \texttt{k6/attack\_credstuff.js} & Lanzar intentos repetidos de autenticacion con usuarios y contrasenas comunes para forzar activacion del rate limit. & Respuestas 429 cuentan como bloqueo; respuestas 200 representan compromiso de cuenta. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La operacionalizacion concreta de cada vector fue la siguiente. En C1, el script rota payloads SQLi de distintas familias y los inserta en \texttt{create}, \texttt{read}, \texttt{update}, \texttt{list} y \texttt{delete}; por tanto, el ataque modela intento de inyeccion desde un usuario autenticado contra el plano HTTP de entrada. En este escenario, \texttt{baseline} correspondio a nginx sin WAF, mientras que \texttt{istio} y \texttt{kong} incorporaron la logica de mini-WAF en Lua; por eso el contraste metodologicamente correcto es gateway sin filtrado versus gateway instrumentado.
+
+En C2, el vector representa movimiento lateral post-compromiso dentro del cluster. El atacante no intenta autenticarse como usuario externo, sino acceder directamente a un backend interno sin identidad de malla. La mitigacion consiste en impedir que ese trafico alcance \texttt{data-service}. En C3, el diseno amplia ese mismo principio y distingue entre aislamiento interno y control de egress: \texttt{basic} solo bloquea P1 y P2, mientras \texttt{strict} tambien bloquea P3 y P4. Finalmente, en C4 el vector es de abuso de autenticacion por volumen, no de explotacion semantica del backend; por ello la evidencia principal es la tasa de respuestas 429 inducidas por el rate limiter.
+
+Desde el punto de vista de validez experimental, esta asignacion de vectores mantiene alineacion entre amenaza y mecanismo defensivo. C1 prueba filtrado de entrada en capa 7, C2 autenticacion mutua entre servicios, C3 segmentacion de red y C4 limitacion de tasa sobre intentos de login. En consecuencia, la interpretacion de resultados debe hacerse por control y por vector correspondiente, no como si todas las siglas estuvieran respondiendo a una misma clase de ataque.

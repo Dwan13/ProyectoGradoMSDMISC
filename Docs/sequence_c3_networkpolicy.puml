@@ -1,0 +1,69 @@
+@startuml sequence_c3_networkpolicy
+!theme plain
+hide footbox
+skinparam shadowing false
+skinparam defaultFontSize 11
+
+title C3 - NetworkPolicy (flujo legitimo y probes de segmentacion)
+
+actor Cliente as client
+participant "auth-service" as auth
+participant "api-service" as api
+participant "CNI / NetworkPolicy" as netpol
+participant "data-service" as data
+database "PostgreSQL" as db
+participant "Pod atacante" as attacker
+participant "postgres service" as pgsvc
+participant "Internet" as internet
+
+== Flujo legitimo ==
+client -> auth: POST /login
+auth --> client: 200 JWT
+client -> api: GET /products\nAuthorization: Bearer JWT
+api -> api: decode_token()
+api -> netpol: solicitar salida a data-service
+netpol -> data: trafico permitido
+data -> db: SELECT ... FROM app_products
+db --> data: filas
+data --> api: 200 JSON
+api --> client: 200 JSON
+
+== Probe P1 ==
+attacker -> netpol: conectar a data-service:8080/products
+alt baseline
+  netpol -> data: permitido
+  data -> db: SELECT ...
+  db --> data: filas
+  data --> attacker: 200
+else basic o strict
+  netpol --> attacker: bloqueado
+end
+
+== Probe P2 ==
+attacker -> netpol: TCP 5432 a postgres
+alt baseline
+  netpol -> pgsvc: permitido
+  pgsvc --> attacker: puerto accesible
+else basic o strict
+  netpol --> attacker: bloqueado
+end
+
+== Probe P3 ==
+api -> netpol: salida a 1.1.1.1:443
+alt baseline o basic
+  netpol -> internet: permitido
+  internet --> api: conexion exitosa
+else strict
+  netpol --> api: bloqueado
+end
+
+== Probe P4 ==
+api -> netpol: HTTP a example.com:80
+alt baseline o basic
+  netpol -> internet: permitido
+  internet --> api: HTTP 200/response
+else strict
+  netpol --> api: bloqueado
+end
+
+@enduml
