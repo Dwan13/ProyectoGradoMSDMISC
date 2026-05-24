@@ -1,0 +1,21 @@
+% C4 - Rate Limiting
+% Documento LaTeX independiente para incluir con \input{documentecionFinal/C4_rate_limiting.tex}
+
+\section{Control C4: Rate Limiting}
+\label{sec:c4-rate-limiting}
+
+El control C4 eval\'ua el efecto de limitar la tasa de solicitudes en el punto de entrada del sistema, comparando baseline, l\'imite moderado y l\'imite estricto.
+
+\subsection{Configuraci\'on aplicada}
+
+\begin{itemize}
+  \item \textbf{Baseline:} sin l\'imite de tasa en \texttt{NGINX Ingress} (\texttt{realistic-gateway}).
+
+  \item \textbf{Moderate:} l\'imite aplicado en \texttt{NGINX Ingress} equivalente a \texttt{S2\_C4\_MODERATE\_RPM=1200} (aprox. 20 req/s, convertido a req/s en tiempo de ejecuci\'on).
+
+  \item \textbf{Strict:} l\'imite aplicado en \texttt{NGINX Ingress} equivalente a \texttt{S2\_C4\_STRICT\_RPM=300} (aprox. 5 req/s, convertido a req/s en tiempo de ejecuci\'on).
+\end{itemize}
+
+En t\'erminos pr\'acticos, C4 no modifica la l\'ogica de negocio de los servicios; solo introduce control de admisi\'on de tr\'afico en la entrada para observar cambios en throughput, latencia y errores bajo carga.
+
+\textbf{Aclaraci\'on de ejecuci\'on en S2 final:} aunque la pol\'itica de rate limiting se configura en ingress, el benchmark automatizado de S2 utiliza endpoints \texttt{NodePort} en HTTP (\texttt{auth:30184}, \texttt{api:30181}) para las solicitudes del cliente de prueba.

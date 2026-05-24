@@ -1,0 +1,52 @@
+@startuml
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam ArrowColor #2F4F4F
+skinparam DefaultTextAlignment center
+
+left to right direction
+
+title C1 - Arquitectura API Gateway / Ingress S2 (baseline, istio, kong)
+
+actor "Cliente (k6 / usuario)" as client
+
+cloud "Edge Layer" {
+  component "NGINX Ingress\nC1/baseline" as nginx
+  component "Istio IngressGateway\nC1/istio" as istio_gw
+  component "Kong Ingress\nC1/kong" as kong
+}
+
+node "Namespace mubench-real" {
+  component "auth-service\n:8080\n/login" as auth
+  component "api-service\n:8080\n/profile, /users" as api
+  component "data-service\n:8080" as data
+  database "postgres\n:5432" as db
+}
+
+client --> nginx : HTTPS host real-postgres.local\n/auth/*, /api/*
+client --> istio_gw : HTTPS host real-postgres.local\n/login, /profile
+client --> kong : HTTPS host real-postgres.local\n/login, /profile
+
+nginx --> auth : /auth
+nginx --> api : /api
+
+istio_gw --> auth : VirtualService /login
+istio_gw --> api : VirtualService /profile
+
+kong --> auth : Ingress /login
+kong --> api : Ingress /profile
+
+api --> data : HTTP 8080
+data --> db : TCP 5432
+
+note bottom
+Comparacion C1:
+- baseline: NGINX Ingress Class
+- istio: Gateway + VirtualService (Envoy)
+- kong: Kong Ingress Controller (plugins capa 7)
+- En S2, C1 es el control evaluado por path HTTPS de ingreso
+end note
+
+@enduml

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: realistic-without-rate-limiting
+  labels:
+    # C4 baseline: SIN Rate Limiting. Ni a nivel de Ingress (sin annotations
+    # nginx.ingress.kubernetes.io/limit-*) ni a nivel de aplicación
+    # (RATE_LIMIT_ENABLED=false en api-service). Todo request llega al backend.
+    # Excluimos sidecars para que la única variable controlada sea el RL
+    # (no se cuele mTLS ni políticas de red de Istio/Linkerd).
+    istio-injection: disabled
+    linkerd.io/inject: disabled
+    tier: realistic-without-rate-limiting
+  

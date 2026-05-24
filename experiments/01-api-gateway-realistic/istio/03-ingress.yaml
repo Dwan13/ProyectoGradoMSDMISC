@@ -1,0 +1,50 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: realistic-gateway
+  namespace: realistic-istio
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE
+        credentialName: realistic-istio-tls
+      hosts:
+        - realistic-istio.local
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: realistic-vs
+  namespace: realistic-istio
+spec:
+  hosts:
+    - realistic-istio.local
+  gateways:
+    - realistic-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /api/
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: api-service
+            port:
+              number: 8080
+    - match:
+        - uri:
+            prefix: /auth/
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: auth-service
+            port:
+              number: 8080

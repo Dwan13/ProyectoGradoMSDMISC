@@ -29,6 +29,14 @@ data:
       (2, 'alice', 'alice@mubench.local'),
       (3, 'bob', 'bob@mubench.local')
     ON CONFLICT (id) DO NOTHING;
+  02-create-products.sql: |
+    CREATE TABLE IF NOT EXISTS app_products (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(128) NOT NULL,
+        description TEXT,
+        price NUMERIC(10,2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
 ---
 apiVersion: apps/v1
 kind: Deployment

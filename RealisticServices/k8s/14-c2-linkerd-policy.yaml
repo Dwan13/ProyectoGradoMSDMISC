@@ -1,0 +1,45 @@
+# C2/linkerd_mtls — Server + MeshTLSAuthentication + AuthorizationPolicy
+# sólo para data-service (backend puro intra-cluster).
+#
+# Justificación metodológica (igual que en 13-c2-istio-strict.yaml):
+#   - api-service: edge, sin policy (entra ingress).
+#   - auth-service: front-door público de auth; sin policy.
+#   - data-service: backend, exige identidad mTLS via MeshTLSAuthentication.
+#
+# Requisito adicional aplicado en factorial-apply-scenario.sh:
+#   annotation `config.linkerd.io/default-inbound-policy: deny` en el deploy
+#   data-service (Linkerd default es `all-unauthenticated`).
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: data-server
+  namespace: realistic
+spec:
+  podSelector: { matchLabels: { app: data-service } }
+  port: 8080
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: realistic-meshed
+  namespace: realistic
+spec:
+  identities:
+    - "*.realistic.serviceaccount.identity.linkerd.cluster.local"
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: data-authz
+  namespace: realistic
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: data-server
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+      name: realistic-meshed

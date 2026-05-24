@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: realistic-gateway
+  namespace: realistic-moderate-rate-limiting
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    # ----- C4 MODERATE: Rate Limiting = 1200 req/min por IP cliente -----
+    # nginx-ingress traduce esto a un zone limit_req con:
+    #   - rate  = 1200 r/m
+    #   - burst = 1200 * 1 = 1200  (limit-burst-multiplier=1: burst = rpm exacto)
+    # Cualquier IP que supere las 1200 req/min recibe HTTP 503
+    # (default limit_req_status del nginx-ingress controller).
+    nginx.ingress.kubernetes.io/limit-rpm: "1200"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "1"
+spec:
+  ingressClassName: public
+  tls:
+    - hosts:
+        - realistic-moderate-rate-limiting.local
+      secretName: nginx-tls
+  rules:
+    - host: realistic-moderate-rate-limiting.local
+      http:
+        paths:
+          - path: /auth(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 8080
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api-service
+                port:
+                  number: 8080

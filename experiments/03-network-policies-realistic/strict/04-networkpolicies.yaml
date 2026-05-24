@@ -1,0 +1,218 @@
+# =============================================================================
+# C3 STRICT NetworkPolicies — micro-segmentación por servicio (least-privilege).
+# -----------------------------------------------------------------------------
+# Cada política expresa explícitamente UNA arista del grafo funcional:
+#
+#   ┌─────────────────┐
+#   │ ingress-ctrl ns │──► auth-service:8080  (login)
+#   │  (ingress /     │──► api-service:8080   (CRUD productos)
+#   │   ingress-nginx)│
+#   └─────────────────┘
+#                       api-service ──► auth-service:8080   (validar token)
+#                       api-service ──► data-service:8080   (CRUD)
+#                       auth-service ──► postgres:5432      (usuarios)
+#                       data-service ──► postgres:5432      (productos)
+#
+# Diferencia frente a BASIC: en basic todo tráfico INTRA-NS está permitido.
+# Aquí, postgres sólo acepta de {auth, data}, data sólo acepta de api, etc.
+# Si auth o data fueran comprometidos, NO podrían pivotar lateralmente a
+# servicios fuera de su ruta autorizada.
+# =============================================================================
+---
+# 0) DEFAULT DENY (igual que basic)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: realistic-strict-network-policies
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# 1) DNS para todos (kube-system :53)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dns
+  namespace: realistic-strict-network-policies
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# 2) AUTH-SERVICE: ingress desde ingress-ctrl Y desde api-service
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: auth-ingress
+  namespace: realistic-strict-network-policies
+spec:
+  podSelector:
+    matchLabels:
+      app: auth-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app: api-service
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# 3) AUTH-SERVICE: egress sólo a postgres:5432
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: auth-egress
+  namespace: realistic-strict-network-policies
+spec:
+  podSelector:
+    matchLabels:
+      app: auth-service
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# 4) API-SERVICE: ingress sólo desde ingress-ctrl
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-ingress
+  namespace: realistic-strict-network-policies
+spec:
+  podSelector:
+    matchLabels:
+      app: api-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# 5) API-SERVICE: egress a auth-service y data-service (8080)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-egress
+  namespace: realistic-strict-network-policies
+spec:
+  podSelector:
+    matchLabels:
+      app: api-service
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: auth-service
+        - podSelector:
+            matchLabels:
+              app: data-service
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# 6) DATA-SERVICE: ingress sólo desde api-service
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: data-ingress
+  namespace: realistic-strict-network-policies
+spec:
+  podSelector:
+    matchLabels:
+      app: data-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-service
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# 7) DATA-SERVICE: egress sólo a postgres:5432
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: data-egress
+  namespace: realistic-strict-network-policies
+spec:
+  podSelector:
+    matchLabels:
+      app: data-service
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# 8) POSTGRES: ingress sólo desde auth-service y data-service en 5432
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-ingress
+  namespace: realistic-strict-network-policies
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: auth-service
+        - podSelector:
+            matchLabels:
+              app: data-service
+      ports:
+        - protocol: TCP
+          port: 5432
+# Nota: POSTGRES no necesita política egress adicional. `default-deny-all`
+# (egress) ya bloquea todo y `allow-egress-dns` añade sólo el puerto 53.
+# El resultado neto para postgres = sólo DNS hacia kube-system, nada más.

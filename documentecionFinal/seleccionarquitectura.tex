@@ -1,0 +1,262 @@
+\chapter{Selección de la Arquitectura de Referencia y Controles Defensivos}
+
+La selección de la arquitectura de referencia y de los controles de seguridad defensiva constituye una fase fundamental dentro del diseño experimental, dado que define el entorno base sobre el cual se evaluará el impacto en métricas de rendimiento, escalabilidad y tolerancia a fallos.
+
+\section{Criterios de selección}
+
+La selección se realizó con base en criterios técnicos y metodológicos orientados a garantizar la validez experimental, la reproducibilidad de los resultados y la relevancia práctica de los escenarios evaluados:
+
+\begin{itemize}[noitemsep]
+    \item Representatividad de arquitecturas modernas basadas en microservicios.
+    \item Compatibilidad con Kubernetes.
+    \item Capacidad de instrumentación y observabilidad.
+    \item Reproducibilidad en entornos controlados.
+\end{itemize}
+
+\section{Arquitectura de referencia}
+
+Se adopta una arquitectura basada en microservicios desplegada sobre Kubernetes. 
+
+\section{Controles de seguridad evaluados}
+
+Los controles seleccionados (C1–C4) se alinean con CSA CCM v4.1.0, como se presenta en la Tabla~\ref{tab:controles_ccm}.
+
+\begin{table}[htbp]
+\centering
+\caption{Controles técnicos y su alineación con CSA CCM}
+\label{tab:controles_ccm}
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{p{2cm} p{3cm} p{4cm} p{6cm}}
+\hline
+\textbf{ID} & \textbf{Control} & \textbf{Tecnología} & \textbf{Controles CCM Asociados} \\
+\hline
+
+C1 & API Gateway & Baseline (NGINX Ingress) vs Istio Gateway vs Kong & AIS-08, I\&S-03, IAM-13 \\
+
+C2 & mTLS Service Mesh & Baseline vs Istio mTLS vs Linkerd mTLS & CEK-03, CEK-10, CEK-12, IAM-13, I\&S-03 \\
+
+C3 & Network Policies & Baseline vs Basic vs Strict & I\&S-06, I\&S-03, IAM-05 \\
+
+C4 & Rate Limiting & Baseline vs Moderate (1200 rpm) vs Strict (300 rpm) & AIS-08, I\&S-09, BCR-03 \\
+
+\hline
+\end{tabular}
+
+\vspace{0.2cm}
+{\raggedright \small \textit{Nota.} Controles seleccionados y su correspondencia con CSA CCM v4.1.0.\par}
+
+\end{table}
+
+\section{Modelo multicriterio de priorización}
+
+Para justificar la selección de controles antes de la ejecución experimental, se empleó un modelo multicriterio de carácter ex-ante que combina Weighted Scoring Model (WSM) y Analytic Hierarchy Process (AHP). Su función es transparentar por qué se eligieron C1--C4 frente a otras alternativas, reduciendo subjetividad en la fase de diseño.
+
+La puntuación total de cada control se define como:
+
+\begin{equation}
+Score(C_i) = \sum_{j=1}^{n} w_j \cdot x_{ij}
+\end{equation}
+
+donde $w_j$ representa el peso del criterio y $x_{ij}$ la puntuación del control en dicho criterio. Esta puntuación no reemplaza la evidencia empírica del experimento; únicamente sustenta la decisión inicial de selección.
+
+\section{Definición de criterios}
+
+\begin{itemize}[noitemsep]
+    \item \textbf{Impacto en seguridad (30\%):} capacidad de mitigación de riesgos.
+    \item \textbf{Cobertura de amenazas (20\%):} amplitud de vectores cubiertos.
+    \item \textbf{Facilidad de implementación (20\%):} complejidad técnica.
+    \item \textbf{Costo operativo (15\%):} consumo de recursos.
+    \item \textbf{Alineación con marcos (15\%):} correspondencia con estándares.
+\end{itemize}
+
+\section{Evaluación multicriterio}
+
+La evaluación multicriterio se utiliza como criterio de inclusión y priorización preliminar de controles. Los resultados experimentales de desempeño y seguridad se analizan posteriormente con el diseño factorial y no se infieren a partir de esta tabla.
+
+\begin{table}[htbp]
+\centering
+\caption{Evaluación multicriterio de controles}
+\label{tab:ranking_controles}
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{p{1cm} p{2cm} p{2cm} p{2cm} p{2cm} p{2cm} p{2cm}}
+\hline
+\textbf{ID} & \textbf{Impacto} & \textbf{Facilidad} & \textbf{Costo} & \textbf{Cobertura} & \textbf{Alineación} & \textbf{Score} \\
+\hline
+
+C1 & 4 (1.20) & 4 (0.80) & 4 (0.60) & 4 (0.80) & 5 (0.75) & 4.15 \\
+
+C2 & 5 (1.50) & 3 (0.60) & 3 (0.45) & 5 (1.00) & 5 (0.75) & 4.30 \\
+
+C3 & 4 (1.20) & 5 (1.00) & 5 (0.75) & 4 (0.80) & 4 (0.60) & 4.35 \\
+
+C4 & 4 (1.20) & 5 (1.00) & 5 (0.75) & 3 (0.60) & 4 (0.60) & 4.15 \\
+
+\hline
+\end{tabular}
+
+\vspace{0.2cm}
+{\raggedright \small \textit{Nota.} Los valores entre paréntesis representan el puntaje ponderado.\par}
+
+\end{table}
+
+Los resultados permiten establecer el siguiente orden de prioridad:
+
+\begin{itemize}[noitemsep]
+    \item C3 (Network Policies): mayor puntuación global, destacando por eficiencia y bajo costo.
+    \item C2 (mTLS): mayor impacto en seguridad, aunque más costoso.
+    \item C1 (API Gateway): balance entre control y gobernanza.
+    \item C4 (Rate Limiting): impacto en la disponibilidad del servicio.
+\end{itemize}
+
+\subsection{Análisis de resultados de la evaluación multicriterio}
+
+Los resultados del modelo muestran un balance entre seguridad, costo y facilidad de adopción. C3 obtiene la mayor puntuación global por su bajo costo operativo y adopción nativa en Kubernetes; C2 destaca por mayor impacto criptográfico y cobertura, aunque con mayor complejidad operativa; C1 mantiene un perfil equilibrado para control en el perímetro; y C4 aporta protección de disponibilidad con implementación simple y alto valor práctico en escenarios de sobrecarga.
+
+En conjunto, la priorización evidencia trade-offs entre profundidad de protección y costo de operación, y justifica la inclusión de los cuatro controles como portafolio representativo para evaluación experimental. La validez de sus efectos sobre latencia, throughput, error y consumo se determina únicamente en los capítulos de resultados.
+
+\section{Arquitectura}
+
+La arquitectura experimental se estructura sobre Kubernetes como plataforma base de orquestación, sobre la cual se ejecutan microservicios. Los controles de seguridad (C1--C4) se aplican como tratamientos experimentales sobre el mismo entorno base, permitiendo la recolección de métricas homogéneas mediante herramientas de observabilidad y pruebas de carga, lo que habilita una comparación consistente y reproducible.
+
+En las siguientes subsecciones se presentan los diagramas que describen la arquitectura desde diferentes perspectivas: estructural, de interacción y de despliegue.
+
+\subsection{Vista de componentes}
+
+El diagrama de componentes describe la organización lógica del sistema, identificando los principales módulos funcionales y sus relaciones. Esta vista permite comprender cómo se distribuyen las responsabilidades dentro de la arquitectura y cómo interactúan los diferentes servicios.
+
+Se identifican tres servicios principales: autenticación, gestión de usuarios y persistencia de datos, los cuales se comunican mediante interfaces HTTP. Adicionalmente, se incluye un componente generador de carga que simula el comportamiento de usuarios reales.
+\begin{figure}[H]
+    \centering
+    \caption{Diagrama de componentes de la arquitectura experimental}
+    \includegraphics[width=1\textwidth]{Pictures/arquitectura/arquitecturaFinal.png}
+    \label{fig:componentes}
+
+    \vspace{0.2cm}
+    {\raggedright \small \textit{Nota.} Representación lógica de los componentes principales del sistema. \par}
+\end{figure}
+\FloatBarrier
+
+El componente \textit{k6 Load Generator} simula el tráfico de usuarios, ejecutando operaciones de autenticación, creación y consulta de usuarios. El \textit{API Service} actúa como punto central de orquestación, delegando funciones específicas a los servicios de autenticación y persistencia.
+
+El \textit{Auth Service} gestiona la validación de credenciales y la emisión de tokens, mientras que el \textit{Data Service} se encarga del almacenamiento y recuperación de información. Esta separación de responsabilidades permite analizar de forma aislada el impacto de los controles de seguridad sobre diferentes flujos del sistema.
+
+\subsection{Vista de despliegue}
+
+El diagrama de despliegue representa la distribución física de los componentes dentro del clúster de Kubernetes. Esta vista es fundamental para comprender cómo los controles de seguridad son aplicados en el entorno real de ejecución.
+
+Se destacan elementos como pods, servicios, ingress y políticas de red, los cuales permiten modelar condiciones operativas realistas.
+
+\begin{figure}[H]
+    \centering
+    \caption{Diagrama de despliegue en Kubernetes}
+    \includegraphics[width=0.7\textwidth]{Pictures/arquitectura/DiagramaDespliegue.png}
+    \label{fig:despliegue}
+
+    \vspace{0.2cm}
+    {\raggedright \small \textit{Nota.} Distribución física de servicios dentro del clúster. \par}
+\end{figure}
+\FloatBarrier
+
+El sistema se despliega en un clúster de Kubernetes utilizando un namespace dedicado. Cada microservicio se ejecuta dentro de un pod independiente, lo que permite escalabilidad y aislamiento.
+
+El controlador de ingress actúa como punto de entrada al sistema, siendo el lugar donde se implementa el control C1 (API Gateway). A su vez, las Network Policies (C3) regulan la comunicación entre pods, mientras que el control de rate limiting (C4) se aplica en el ingress mediante anotaciones de NGINX para limitar tasa y burst.
+
+Esta distribución permite evaluar el impacto de los controles en condiciones cercanas a un entorno productivo.
+
+\subsection{Vista de interacción}
+
+El diagrama de secuencia describe el flujo de interacción entre los componentes durante la ejecución de un escenario representativo. Este flujo corresponde a las operaciones principales evaluadas en las pruebas de carga.
+
+El objetivo de esta vista es evidenciar los puntos donde los controles de seguridad influyen directamente en la latencia y el comportamiento del sistema.
+
+\begin{figure}[H]
+    \centering
+    \caption{Diagrama de secuencia del flujo create/list}
+    \includegraphics[width=0.7\textwidth]{Pictures/arquitectura/DiagramaSecuencia.png}
+    \label{fig:secuencia}
+
+    \vspace{0.2cm}
+    {\raggedright \small \textit{Nota.} Flujo principal utilizado en las pruebas de carga. \par}
+\end{figure}
+\FloatBarrier
+El flujo inicia con la autenticación del usuario, seguida de la creación y consulta de registros. Este patrón representa un caso de uso típico en aplicaciones reales y permite evaluar tanto operaciones de escritura como de lectura.
+
+Los controles de seguridad impactan diferentes puntos del flujo. Por ejemplo, el API Gateway introduce procesamiento adicional en la entrada, el mTLS afecta la comunicación entre servicios, las Network Policies restringen los caminos posibles de comunicación y el rate limiting regula la admisión de solicitudes bajo carga.
+
+Este flujo constituye la base para la generación de métricas de latencia, throughput y tasa de error.
+
+\subsection{Vista lógica de servicios}
+
+Aunque la arquitectura se basa en microservicios desplegados en Kubernetes, resulta necesario describir la estructura interna de los datos y entidades principales del sistema. Para este propósito, se utiliza el siguiente modelo lógico del dominio.
+
+\begin{figure}[H]
+    \centering
+    \caption{Vista lógica de los servicios}    
+    \includegraphics[width=0.9\textwidth]{Pictures/arquitectura/diagramaPaquetes.png}
+    \label{fig:clases}
+
+    \vspace{0.2cm}
+    {\raggedright \small \textit{Nota.} Representación simplificada de los principales servicios y componentes involucrados en la plataforma experimental. \par}
+\end{figure}
+\FloatBarrier
+
+Esta vista permite identificar las responsabilidades generales de cada servicio y comprender las interacciones principales entre autenticación, lógica de negocio, persistencia y monitoreo dentro del entorno experimental evaluado.
+
+
+\section{Síntesis arquitectónica}
+
+La arquitectura propuesta permite aislar y evaluar el impacto de controles de seguridad defensiva en diferentes escenarios del sistema. Estos escenarios experimentales, definidos en la Tabla~\ref{tab:matriz_escenarios}, permiten operacionalizar la evaluación bajo un enfoque controlado, manteniendo un equilibrio entre realismo y control experimental.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Matriz de escenarios experimentales}
+    
+    \vspace{0.2cm}
+    
+    \begin{tabular}{lllll}
+    \hline
+    \textbf{Código} & \textbf{Control} & \textbf{Tecnología / Técnica} & \textbf{Carga} & \textbf{Propósito} \\
+    \hline
+    C1-B & C1 & baseline & VUS \{1, 5, 10, 20\} & referencia C1 \\
+    C1-A & C1 & istio & VUS \{1, 5, 10, 20\} & gateway opción A \\
+    C1-C & C1 & kong & VUS \{1, 5, 10, 20\} & gateway opción B \\
+    C2-B & C2 & baseline & VUS \{1, 5, 10, 20\} & referencia C2 \\
+    C2-A & C2 & istio-mtls & VUS \{1, 5, 10, 20\} & mTLS opción A \\
+    C2-C & C2 & linkerd-mtls & VUS \{1, 5, 10, 20\} & mTLS opción B \\
+    C3-B & C3 & baseline & VUS \{1, 5, 10, 20\} & referencia C3 \\
+    C3-A & C3 & basic & VUS \{1, 5, 10, 20\} & segmentación básica \\
+    C3-C & C3 & strict & VUS \{1, 5, 10, 20\} & segmentación estricta \\
+    C4-B & C4 & baseline & VUS \{1, 5, 10, 20\} & referencia C4 \\
+    C4-A & C4 & moderate (1200 rpm) & VUS \{1, 5, 10, 20\} & limitación moderada \\
+    C4-C & C4 & strict (300 rpm) & VUS \{1, 5, 10, 20\} & limitación estricta \\
+    \hline
+    \end{tabular}
+
+    \vspace{0.2cm}
+    {\raggedright \small \textit{Nota.} Cada escenario representa una combinación control-tecnología evaluada en los niveles de carga \{1, 5, 10, 20\} VUS. \par}
+    
+    \label{tab:matriz_escenarios}
+\end{table}
+\FloatBarrier
+
+El uso de Kubernetes como plataforma de despliegue, combinado con servicios funcionales y herramientas de observabilidad, proporciona un entorno adecuado para la recolección de evidencia empírica sobre los trade-offs entre seguridad y desempeño.
+
+Los puntos de inserción de los controles dentro de la arquitectura (Figuras~\ref{fig:despliegue} y \ref{fig:secuencia}) determinan su impacto sobre las variables dependientes.
+
+Por ejemplo:
+
+\begin{itemize}
+    \item C1 impacta la latencia en el punto de entrada
+    \item C2 afecta la comunicación inter-servicio
+    \item C3 restringe los flujos de red
+    \item C4 regula el throughput
+\end{itemize}
+
+Las diferentes vistas presentadas (componentes, despliegue e interacción) permiten comprender de manera integral el sistema, facilitando tanto la reproducibilidad del experimento como la interpretación de los resultados obtenidos.
+
+Con base en esta selección arquitectónica y en la priorización multicriterio ex-ante, el capítulo siguiente formaliza el diseño experimental factorial y el marco estadístico con el que se evalúan empíricamente los efectos de C1--C4 sobre desempeño, confiabilidad y consumo de recursos.
+
+
+%------------------------------------------------

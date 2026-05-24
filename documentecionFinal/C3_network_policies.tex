@@ -1,0 +1,25 @@
+% C3 - Network Policies
+% Documento LaTeX independiente para incluir con \input{documentecionFinal/C3_network_policies.tex}
+
+\section{Control C3: Network Policies}
+\label{sec:c3-network-policies}
+
+El control C3 eval\'ua el impacto de la segmentaci\'on de red mediante \texttt{NetworkPolicy} en tres variantes: \textit{baseline}, \textit{segmentaci\'on b\'asica} y \textit{segmentaci\'on estricta}.
+
+\subsection{Configuraci\'on aplicada}
+
+\begin{itemize}
+  \item \textbf{Baseline:} sin \texttt{NetworkPolicy}; conectividad por defecto del cl\'uster.
+
+  \item \textbf{Segmentaci\'on b\'asica (moderate):} permite solo flujos funcionales:
+  \begin{itemize}
+    \item \texttt{api-service -> data-service} (TCP/8080)
+    \item \texttt{data-service -> postgres} (TCP/5432)
+    \item DNS hacia \texttt{kube-system} (TCP/UDP 53)
+    \item Ingreso de observabilidad a \texttt{data-service} (TCP/8080)
+  \end{itemize}
+
+  \item \textbf{Segmentaci\'on estricta (strict):} mantiene las reglas de \texttt{data-service}/\texttt{postgres}, pero bloquea intencionalmente \texttt{api-service -> data-service}; para \texttt{api-service} se deja solo egreso DNS.
+\end{itemize}
+
+En t\'erminos pr\'acticos, \textit{b\'asica} conserva operaci\'on funcional con aislamiento, mientras \textit{estricta} fuerza una restricci\'on de conectividad para observar su efecto en el comportamiento del sistema.

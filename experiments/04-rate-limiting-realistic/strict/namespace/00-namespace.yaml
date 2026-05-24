@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: realistic-strict-rate-limiting
+  labels:
+    # C4 strict: rate limiting a 300 req/min por IP cliente, aplicado en el
+    # Ingress nginx. Variable controlada = throttling en gateway; el código
+    # de la app es idéntico al baseline (RATE_LIMIT_ENABLED=false a nivel app).
+    # Sin sidecars Istio/Linkerd para no contaminar con mTLS ni NetworkPolicies.
+    istio-injection: disabled
+    linkerd.io/inject: disabled
+    tier: realistic-strict-rate-limiting

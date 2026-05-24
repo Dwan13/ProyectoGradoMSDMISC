@@ -35,6 +35,7 @@ SCENARIO=""
 STOP_MICROK8S=true
 SCALE_DOWN=true
 ASSUME_YES=false
+TEST_PROCESS_PATTERN="run-k6-benchmark.sh|run-scaling-tests.sh|run-all-controls|live-control-and-request.sh|run-s2-final-repro.sh|run-randomized|k6 run|analyze-s2-academic-final.py"
 
 usage() {
   cat << EOF
@@ -52,6 +53,11 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --scenario)
+      if [[ $# -lt 2 ]]; then
+        echo "Falta valor para --scenario" >&2
+        usage
+        exit 1
+      fi
       SCENARIO="$2"
       shift 2
       ;;
@@ -168,16 +174,26 @@ echo ""
 
 log_info "Paso 1/5: Verificando procesos en ejecucion..."
 
-if pgrep -u "$USER" -f "run-k6-benchmark.sh\|run-scaling-tests.sh\|run-all-controls\|live-control-and-request.sh" > /dev/null; then
+if pgrep -u "$USER" -f "$TEST_PROCESS_PATTERN" > /dev/null; then
   log_warn "Hay scripts de test en ejecución"
   log_info "Esperando a que terminen (máx 60s)..."
-  
-  sleep 5
-  
-  if pgrep -u "$USER" -f "run-k6-benchmark.sh\|run-scaling-tests.sh\|run-all-controls\|live-control-and-request.sh" > /dev/null; then
-    log_warn "Tests aun en ejecucion, terminando..."
-    pkill -u "$USER" -f "run-k6-benchmark.sh\|run-scaling-tests.sh\|run-all-controls\|live-control-and-request.sh" || true
+
+  # Espera graceful de hasta 60s para evitar truncar resultados
+  local_wait=0
+  while pgrep -u "$USER" -f "$TEST_PROCESS_PATTERN" > /dev/null && [[ "$local_wait" -lt 60 ]]; do
     sleep 2
+    local_wait=$((local_wait + 2))
+  done
+
+  if pgrep -u "$USER" -f "$TEST_PROCESS_PATTERN" > /dev/null; then
+    log_warn "Tests aun en ejecucion tras ${local_wait}s, enviando SIGTERM..."
+    pkill -u "$USER" -f "$TEST_PROCESS_PATTERN" || true
+    sleep 5
+
+    if pgrep -u "$USER" -f "$TEST_PROCESS_PATTERN" > /dev/null; then
+      log_warn "Procesos persistentes; enviando SIGKILL para cierre forzoso"
+      pkill -9 -u "$USER" -f "$TEST_PROCESS_PATTERN" || true
+    fi
   fi
 fi
 
@@ -269,11 +285,16 @@ Recursos limpios:
 
 Próximos pasos:
   1. Ahora puedes apagar la máquina sin problema
-  2. Manana al encender, ejecuta: bash scripts/graceful-startup.sh
-  3. Si quieres forzar escenario: bash scripts/graceful-startup.sh --scenario s2
+  2. Manana al encender, ejecuta:
+       bash scripts/factorial-graceful-startup.sh --yes
+     o el flujo unificado:
+       bash scripts/replicate-tomorrow.sh --mode bootstrap
+  3. Para lanzar campaña factorial directamente:
+       bash scripts/replicate-tomorrow.sh --mode full --yes
 
 ${YELLOW}Nota:${NC} Todos tus datos y configuración se preservaron.
 
 EOF
 
 log_success "¡Listo! Máquina segura para apagar"
+sync || true

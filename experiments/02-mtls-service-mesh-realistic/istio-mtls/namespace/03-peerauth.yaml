@@ -1,0 +1,26 @@
+---
+# PeerAuthentication STRICT, ALCANCE LIMITADO AL NAMESPACE realistic-istio-mtls.
+# Esto fuerza que TODA comunicación pod->pod dentro de este ns use mTLS y rechace
+# cualquier conexión en texto plano. NO afecta a otros namespaces porque está
+# scopeada con metadata.namespace.
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: realistic-istio-mtls
+spec:
+  mtls:
+    mode: STRICT
+---
+# DestinationRule explícita: los clientes dentro del ns usan ISTIO_MUTUAL para
+# todas las cargas internas. Belt-and-suspenders junto a la PeerAuthentication.
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: default-mtls
+  namespace: realistic-istio-mtls
+spec:
+  host: "*.realistic-istio-mtls.svc.cluster.local"
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL

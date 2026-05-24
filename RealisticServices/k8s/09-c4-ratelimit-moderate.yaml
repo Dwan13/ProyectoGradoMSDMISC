@@ -1,0 +1,14 @@
+# C4 Rate Limiting - Variante MODERATE
+# 1200 rpm (20 req/s) por IP - aplicada en Kong API Gateway
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: ratelimit-moderate
+  namespace: realistic
+plugin: rate-limiting
+config:
+  minute: 1200
+  policy: local
+  limit_by: ip
+  fault_tolerant: true
+  hide_client_headers: false

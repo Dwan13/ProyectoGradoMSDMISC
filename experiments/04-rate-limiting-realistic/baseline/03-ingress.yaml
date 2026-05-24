@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: realistic-gateway
+  namespace: realistic-without-rate-limiting
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    # C4 baseline: NO se incluyen annotations de rate limiting de nginx.
+    # Garantizado SIN throttling a nivel de Ingress:
+    #   - nginx.ingress.kubernetes.io/limit-rps         AUSENTE
+    #   - nginx.ingress.kubernetes.io/limit-rpm         AUSENTE
+    #   - nginx.ingress.kubernetes.io/limit-connections AUSENTE
+    #   - nginx.ingress.kubernetes.io/limit-burst-multiplier AUSENTE
+spec:
+  ingressClassName: public
+  tls:
+    - hosts:
+        - realistic-without-rate-limiting.local
+      secretName: nginx-tls
+  rules:
+    - host: realistic-without-rate-limiting.local
+      http:
+        paths:
+          - path: /auth(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 8080
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api-service
+                port:
+                  number: 8080

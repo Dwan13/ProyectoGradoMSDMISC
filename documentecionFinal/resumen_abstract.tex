@@ -1,0 +1,256 @@
+\documentclass[12pt,letterpaper,fleqn]{report}
+% =========================
+% PAQUETES
+% =========================
+\usepackage[spanish]{babel}
+\addto\captionsspanish{
+    \renewcommand{\tablename}{Tabla}
+}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{newtxtext,newtxmath}
+\usepackage{setspace}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{csquotes}
+\usepackage{hyperref}
+\usepackage{apacite}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{pdflscape}
+\usepackage{array}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{caption} 
+\usepackage{booktabs}
+\usepackage{chngcntr}
+\usepackage{enumitem}
+\usepackage{amsmath}  % deja las ecuaciones alineadas a la izquierda
+\usepackage{placeins}
+
+\counterwithout{figure}{chapter}
+\counterwithout{table}{chapter}
+\counterwithout{equation}{chapter}
+% =========================
+% CONFIGURACIÓN APA (Javeriana)
+% =========================
+\geometry{margin=2.54cm}
+\onehalfspacing
+\setlength{\parindent}{1.27cm}
+\setlength{\parskip}{0pt}
+\setlength{\mathindent}{0pt} % elimina sangría extra
+
+% =========================
+% CONFIG FIGURAS (APA)
+% =========================
+\DeclareCaptionFormat{apa}{
+\textbf{#1#2}\par
+\textit{#3}
+}
+\captionsetup[figure]{
+    format=apa,
+    justification=raggedright,
+    singlelinecheck=false
+}
+% =========================
+% CONFIG TABLES (APA)
+% =========================
+\captionsetup[table]{
+    labelfont=bf,
+    textfont=it,
+    labelsep=newline,
+    justification=raggedright,
+    singlelinecheck=false,
+    margin=0pt
+}
+% =========================
+% DOCUMENTO
+% =========================
+\begin{document}
+
+% =========================
+% PORTADA
+% =========================
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+
+    {\large\bfseries EVALUACIÓN DEL IMPACTO DE CONTROLES DE SEGURIDAD DEFENSIVA \\
+    ALINEADOS AL CSA CCM V4 EN EL RENDIMIENTO, LA ESCALABILIDAD \\
+    Y LA TOLERANCIA A FALLOS DE ARQUITECTURAS DE MICROSERVICIOS\par}
+
+    \vspace{3cm}
+
+    {\large Autores:\par}
+    \vspace{0.5cm}
+    {\large Dwan Felipe Veloza Páez\\
+    Paola Andrea Cifuentes Ortiz\par}
+
+    \vfill
+
+    {\large PONTIFICIA UNIVERSIDAD JAVERIANA\par}
+    {\large FACULTAD DE INGENIERÍA\par}
+    {\large MAESTRÍA EN INGENIERÍA DE SISTEMAS Y COMPUTACIÓN\par}
+    {\large MAESTRÍA EN SEGURIDAD DIGITAL\par}
+    {\large BOGOTÁ, D.C.\par}
+    {\large 2026\par}
+
+\end{titlepage}
+
+% =========================
+% CONTRAPORTADA
+% =========================
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+
+    {\normalsize\bfseries EVALUACIÓN DEL IMPACTO DE CONTROLES DE SEGURIDAD DEFENSIVA \\
+    ALINEADOS AL CSA CCM V4 EN EL RENDIMIENTO, LA ESCALABILIDAD \\
+    Y LA TOLERANCIA A FALLOS DE ARQUITECTURAS DE MICROSERVICIOS\par}
+
+    \vspace{1.6cm}
+
+    {\normalsize  Autores:\par}
+    \vspace{0.5cm}
+    {\normalsize  Dwan Felipe Veloza Páez\\
+    Paola Andrea Cifuentes Ortiz\par}
+
+    \vspace{1.6cm}
+
+    {\normalsize  Trabajo de grado presentado como requisito parcial para optar a los títulos de:\par}
+    \vspace{0.5cm}
+
+    {\normalsize Magíster en Ingeniería de Sistemas y Computación\\
+    Magíster en Seguridad Digital\par}
+    
+    \vspace{1.8cm}
+
+    {\normalsize  Director(a):\par}
+    {\normalsize  Mariela Josefina Curiel Huérfano\par}
+
+    \vfill
+    
+    {\normalsize Pontificia Universidad Javeriana\par}
+    {\normalsize Facultad de Ingeniería\par}
+    {\normalsize Maestría en Ingeniería de Sistemas y Computación\par}
+    {\normalsize Maestría en Seguridad Digital\par}
+    {\normalsize Bogotá, D.C.\par}
+    {\normalsize 2026\par}
+
+\end{titlepage}
+
+% =========================
+% AUTORIDADES
+% =========================
+\chapter*{Autoridades Académicas}
+\addcontentsline{toc}{chapter}{Autoridades Académicas}
+
+\textbf{Rector Magnífico}\\
+Doc. Luis Fernando Múnera Congote, S.J.
+
+\vspace{0.5cm}
+
+\textbf{Decano Facultad de Ingeniería}\\
+Doc. Diego Alejandro Patiño Guevara
+
+\vspace{0.5cm}
+
+\textbf{Director Departamento de Ingeniería de Sistemas}\\
+Doc. César Julio Bustacara Medina
+
+\vspace{0.5cm}
+
+\textbf{Director Maestría en Ingeniería de Sistemas y Computación}\\
+Doc. Mariela Josefina Curiel Huérfano
+
+\vspace{0.5cm}
+
+\textbf{Director Maestría en Seguridad Digital}\\
+Doc. Rafael Vicente Páez Méndez
+
+% =========================
+% NOTA LEGAL
+% =========================
+\chapter*{Nota Legal}
+\addcontentsline{toc}{chapter}{Nota Legal}
+
+Artículo 23 de la Resolución No. 1 de junio de 1946
+
+``La Universidad no se hace responsable de los conceptos emitidos por sus alumnos en sus proyectos de grado. Solo velará porque no se publique nada contrario al dogma y la moral católica y porque no contengan ataques o polémicas puramente personales. Antes bien, que se vea en ellos el anhelo de buscar la verdad y la justicia.''
+
+% =========================
+% RESUMEN
+% =========================
+\chapter*{Resumen}
+\addcontentsline{toc}{chapter}{Resumen}
+
+Esta tesis presenta una evaluacion comparativa del impacto de controles de seguridad sobre el desempeno de arquitecturas de microservicios desplegadas en Kubernetes. El estudio se enfoca en cuatro familias de control: API Gateway (C1), mTLS (C2), NetworkPolicy (C3) y Rate Limiting (C4), cada una con tres variantes tecnologicas. La evaluacion se realizo mediante un diseno factorial completo de $4 \times 3 \times 4$ (control, variante, nivel de carga), con niveles de carga de 1, 5, 10 y 20 usuarios virtuales (VUS), ocho replicas por celda experimental y bloqueo por dia para reducir sesgos temporales.
+
+Las metricas analizadas fueron latencia promedio (avg\_ms), latencia p95 (p95\_ms), tasa de error (err\_pct), throughput (rps), uso de CPU (cpu\_mcores) y memoria (mem\_mib), complementadas con evidencia de trafico legitimo preservado (login\_success\_total). Los resultados muestran efectos estadisticamente significativos de los factores e interacciones en la mayoria de metricas, confirmados mediante ANOVA factorial. En particular, se evidencia que la seleccion de tecnologia dentro de cada control modifica de manera relevante el costo de seguridad en terminos de latencia y consumo de recursos.
+
+Entre los hallazgos principales, las configuraciones moderadas y tecnologicamente estables presentan mejor balance seguridad-desempeno bajo cargas bajas y medias. Asimismo, se confirma que es posible mantener trafico legitimo estable mientras se aplican controles de seguridad, siempre que la configuracion sea adecuada al contexto operacional.
+
+Como contribucion, el trabajo entrega: (i) una base empirica reproducible de trade-offs seguridad-desempeno en microservicios, (ii) un marco metodologico de evaluacion factorial aplicable a otros entornos Kubernetes, y (iii) lineamientos tecnicos para apoyar decisiones de arquitectura y operacion basadas en evidencia.
+
+\textbf{Palabras clave:} microservicios, Kubernetes, seguridad, desempeno, ANOVA factorial, API Gateway, mTLS, NetworkPolicy, rate limiting, evaluacion experimental. CSA CCM v4
+
+
+% =========================
+% ABSTRACT
+% =========================
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+This thesis presents a comparative evaluation of the performance impact of security controls in Kubernetes-based microservice architectures. The study focuses on four control families: API Gateway (C1), mTLS (C2), NetworkPolicy (C3), and Rate Limiting (C4), each with three technology variants. The experimental campaign followed a full factorial design of $4 \times 3 \times 4$ (control, variant, load level), with load levels of 1, 5, 10, and 20 virtual users (VUs), eight replications per experimental cell, and day-based blocking to reduce temporal bias.
+
+The analyzed metrics were average latency (avg\_ms), p95 latency (p95\_ms), error rate (err\_pct), throughput (rps), CPU usage (cpu\_mcores), and memory usage (mem\_mib), complemented by preserved legitimate traffic evidence (login\_success\_total). Results show statistically significant main and interaction effects for most metrics, as confirmed by factorial ANOVA. In particular, the findings demonstrate that technology choice within each security control significantly changes the security-performance cost in terms of latency and resource consumption.
+
+Key findings indicate that moderate and operationally stable configurations provide a better security-performance balance under low-to-medium loads. The study also confirms that legitimate user traffic can be preserved while enforcing security controls, provided that control configurations are tuned to operational requirements.
+
+The main contributions are: (i) a reproducible empirical dataset of security-performance trade-offs in microservices, (ii) a methodological factorial evaluation framework transferable to other Kubernetes environments, and (iii) evidence-based technical guidance for architecture and operations decisions.
+
+\textbf{Keywords:} microservices, Kubernetes, security, performance, factorial ANOVA, API Gateway, mTLS, NetworkPolicy, rate limiting, experimental evaluation. CSA CCM v4
+
+
+% =========================
+% ÍNDICE Y ORGANIZACIÓN
+% =========================
+\pagestyle{empty}
+\setcounter{tocdepth}{2}
+\tableofcontents
+\listoffigures
+\listoftables
+\newpage
+
+\pagestyle{plain}
+
+% =========================
+% CAPÍTULOS
+% =========================
+
+\input{Capitulos/01_introduccion.tex}
+\input{Capitulos/02_problema}
+\input{Capitulos/03_objetivos}
+\input{Capitulos/marco_teorico}
+\input{Capitulos/04_estado_arte}
+\input{Capitulos/05_metodologia}
+\input{Capitulos/06_SeleccionArquitecturaControles}
+\input{Capitulos/07_disenio_experimental}
+\input{Capitulos/experimentos}
+\input{Capitulos/resultados}
+\input{Capitulos/analisisResultados}
+
+
+% =========================
+% REFERENCIAS
+% =========================
+\bibliographystyle{apacite}
+\bibliography{referencias}
+
+% =========================
+% ANEXOS
+% =========================
+\appendix
+\chapter{Anexos}
+
+\end{document}

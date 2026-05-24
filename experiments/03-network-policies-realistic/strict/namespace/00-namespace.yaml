@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: realistic-strict-network-policies
+  labels:
+    # C3 STRICT: micro-segmentación por servicio (least-privilege).
+    #   - default-deny ingress + egress sobre todo pod.
+    #   - cada servicio sólo acepta del/llama al servicio inmediatamente
+    #     adyacente en el grafo funcional:
+    #         ingress-ctrl -> auth, api
+    #         api          -> auth, data
+    #         auth, data   -> postgres:5432
+    #   - egreso sólo al destino:puerto necesario (incl. DNS a kube-system).
+    # Excluimos inyección de sidecars para que la única variable controlada
+    # sea la política de red (no se cuele mTLS).
+    istio-injection: disabled
+    linkerd.io/inject: disabled
+    tier: realistic-strict-network-policies
+  

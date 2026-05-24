@@ -34,6 +34,8 @@ STATE_FILE="${ROOT_DIR}/.mubench-state/last-session.env"
 SCENARIO=""
 AUTO_RESTORE=true
 ASSUME_YES=false
+RESTORE_REPLICAS=true
+RESTORED_FROM_SNAPSHOT=false
 
 usage() {
   cat << EOF
@@ -42,6 +44,7 @@ Uso: bash scripts/graceful-startup.sh [opciones]
 Opciones:
   --scenario <s2|s3|s4|last>  Escenario a levantar
   --no-restore                    No usar snapshot previo
+  --no-replica-restore            No restaurar replicas desde snapshot
   --yes                           Omitir confirmacion antes de aplicar setup
   -h, --help                      Mostrar ayuda
 EOF
@@ -50,11 +53,21 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --scenario)
+      if [[ $# -lt 2 ]]; then
+        echo "Falta valor para --scenario" >&2
+        usage
+        exit 1
+      fi
       SCENARIO="$2"
       shift 2
       ;;
     --no-restore)
       AUTO_RESTORE=false
+      RESTORE_REPLICAS=false
+      shift
+      ;;
+    --no-replica-restore)
+      RESTORE_REPLICAS=false
       shift
       ;;
     --yes)
@@ -99,11 +112,76 @@ load_last_scenario() {
     source "$STATE_FILE"
     if [[ -n "${LAST_SCENARIO:-}" ]] && [[ "${LAST_SCENARIO}" =~ ^s[2-4]$ ]]; then
       SCENARIO="$LAST_SCENARIO"
+      RESTORED_FROM_SNAPSHOT=true
       log_info "Escenario restaurado desde snapshot: $SCENARIO"
       return 0
     fi
   fi
   return 1
+}
+
+wait_for_deployments_ready() {
+  local ns="$1"
+  local timeout_s="${2:-300}"
+  local deadline=$((SECONDS + timeout_s))
+
+  if ! kctl get ns "$ns" >/dev/null 2>&1; then
+    log_warn "Namespace '$ns' no existe; se omite verificacion de readiness"
+    return 0
+  fi
+
+  mapfile -t deploys < <(kctl get deploy -n "$ns" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+  if [[ ${#deploys[@]} -eq 0 ]]; then
+    log_warn "No hay deployments en '$ns' para verificar readiness"
+    return 0
+  fi
+
+  for dep in "${deploys[@]}"; do
+    [[ -z "$dep" ]] && continue
+    log_info "  -> Esperando rollout de '$dep' en namespace '$ns'..."
+    if ! kctl rollout status deployment "$dep" -n "$ns" --timeout="${timeout_s}s" >/dev/null 2>&1; then
+      if (( SECONDS > deadline )); then
+        log_error "Timeout de readiness en '$ns/$dep'"
+      else
+        log_error "Deployment no quedo listo: '$ns/$dep'"
+      fi
+      return 1
+    fi
+  done
+
+  return 0
+}
+
+restore_deployment_replicas() {
+  if [[ "$RESTORE_REPLICAS" != "true" ]]; then
+    log_info "Restauracion de replicas omitida (--no-replica-restore o --no-restore)"
+    return 0
+  fi
+
+  if [[ ! -f "$STATE_FILE" ]]; then
+    log_warn "No existe snapshot en $STATE_FILE; no se restauran replicas"
+    return 0
+  fi
+
+  log_info "Restaurando replicas desde snapshot..."
+  local restored=0
+
+  while IFS='=' read -r key value; do
+    [[ -z "$key" || "$key" =~ ^# ]] && continue
+    [[ ! "$key" =~ ^DEPLOY_ ]] && continue
+
+    local payload="${key#DEPLOY_}"
+    local ns="${payload%%_*}"
+    local dep_raw="${payload#${ns}_}"
+    local dep="${dep_raw//_/-}"
+
+    if kctl get deploy "$dep" -n "$ns" >/dev/null 2>&1; then
+      kctl scale deployment "$dep" -n "$ns" --replicas="$value" >/dev/null 2>&1 || true
+      restored=$((restored + 1))
+    fi
+  done < "$STATE_FILE"
+
+  log_success "Replicas restauradas (best effort): $restored deployments"
 }
 
 kctl() {
@@ -194,6 +272,10 @@ fi
 if [[ ! "$SCENARIO" =~ ^s[2-4]$ ]]; then
   log_error "Escenario invalido: $SCENARIO"
   exit 1
+fi
+
+if [[ "$AUTO_RESTORE" == "false" ]]; then
+  RESTORED_FROM_SNAPSHOT=false
 fi
 
 ################################################################################
@@ -291,6 +373,17 @@ echo ""
 log_info "Paso 5/6: Ejecutando setup de escenario (${SCENARIO})..."
 confirm_startup_plan
 run_scenario_setup
+restore_deployment_replicas
+
+case "$SCENARIO" in
+  s1) ACTIVE_NS="realistic" ;;
+  s2) ACTIVE_NS="mubench-real" ;;
+  s3) ACTIVE_NS="mubench-advanced" ;;
+  s4) ACTIVE_NS="mubench-s4" ;;
+esac
+
+log_info "Verificando readiness final en namespace '$ACTIVE_NS'..."
+wait_for_deployments_ready "$ACTIVE_NS" 300
 
 echo ""
 
@@ -314,11 +407,6 @@ Estado del Cluster:
 Servicios:
 EOF
 
-case "$SCENARIO" in
-  s2) ACTIVE_NS="mubench-real" ;;
-  s3) ACTIVE_NS="mubench-advanced" ;;
-  s4) ACTIVE_NS="mubench-s4" ;;
-esac
 
 if kctl get pods -n "$ACTIVE_NS" &>/dev/null 2>&1; then
   echo "  • Pods en '$ACTIVE_NS': $(kctl get pods -n "$ACTIVE_NS" --no-headers 2>/dev/null | wc -l)"
@@ -353,6 +441,8 @@ Dashboards disponibles:
   • Grafana:    http://localhost:30030
 
 ${YELLOW}Nota:${NC} Puedes reiniciar con ultimo escenario usando: --scenario last
+  • Snapshot usado: $( [[ "$RESTORED_FROM_SNAPSHOT" == "true" ]] && echo "Si" || echo "No" )
+  • Restauracion de replicas: $( [[ "$RESTORE_REPLICAS" == "true" ]] && echo "Si (best effort)" || echo "No" )
 
 EOF
 
