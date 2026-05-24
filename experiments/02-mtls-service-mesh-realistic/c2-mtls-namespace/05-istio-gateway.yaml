@@ -1,0 +1,54 @@
+# Istio Gateway and VirtualService for C2 (realistic-mtls)
+# Exposes /auth/* and /api/* via realistic-mtls.local with TLS
+# This does NOT affect C1 (namespace: realistic)
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: realistic-mtls-gateway
+  namespace: realistic-mtls
+spec:
+  selector:
+    istio: ingressgateway  # default istio-ingressgateway in istio-system
+  servers:
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE
+        credentialName: mubench-tls   # secret must live in istio-system
+      hosts:
+        - realistic-mtls.local
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: realistic-mtls-vs
+  namespace: realistic-mtls
+spec:
+  hosts:
+    - realistic-mtls.local
+  gateways:
+    - realistic-mtls-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /auth/
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: auth-service.realistic-mtls.svc.cluster.local
+            port:
+              number: 8080
+    - match:
+        - uri:
+            prefix: /api/
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: api-service.realistic-mtls.svc.cluster.local
+            port:
+              number: 8080
