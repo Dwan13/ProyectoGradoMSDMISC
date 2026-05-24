@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: realistic-basic-network-policies
+  labels:
+    # C3 BASIC: NetworkPolicies a nivel de namespace (aislamiento "zero-trust ns").
+    #   - default-deny ingress + egress sobre todo pod.
+    #   - permitido: tráfico intra-ns (pod-a-pod dentro del mismo namespace),
+    #     ingreso desde el ns del ingress controller y egreso DNS a kube-system.
+    # Excluimos inyección de sidecars para que la única variable controlada
+    # sea la política de red (no se cuele mTLS).
+    istio-injection: disabled
+    linkerd.io/inject: disabled
+    # Selector usado por las NetworkPolicies para identificar este ns.
+    tier: realistic-basic-network-policies
+  

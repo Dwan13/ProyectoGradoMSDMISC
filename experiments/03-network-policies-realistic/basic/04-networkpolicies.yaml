@@ -1,0 +1,102 @@
+# =============================================================================
+# C3 BASIC NetworkPolicies — aislamiento "zero-trust a nivel de namespace"
+# -----------------------------------------------------------------------------
+# Diseño escogido por ofrecer el mejor TRADE-OFF defensible:
+#   - Bloquea lateral movement desde cualquier OTRO namespace (compromiso de
+#     mubench-*, default, etc. no alcanza nuestros pods).
+#   - Bloquea exfiltración hacia internet o servicios cluster-wide arbitrarios.
+#   - Mantiene la simplicidad operacional (no requiere etiquetar cada servicio
+#     ni mantener allow-lists por pod) — esto se reserva para C3 STRICT.
+#   - Coste de mantenimiento bajo: 4 NetworkPolicies vs >10 en strict.
+#
+# Reglas:
+#   1) default-deny-all: niega TODO ingress y egress sobre cualquier pod del ns.
+#   2) allow-intra-namespace: permite tráfico libre entre pods DEL MISMO ns
+#      (auth↔api↔data↔postgres) — preserva la topología funcional.
+#   3) allow-from-ingress-controller: permite tráfico desde el ns del ingress
+#      controller (microk8s = ns "ingress") hacia auth/api en el puerto 8080.
+#   4) allow-egress-dns: permite resolver DNS contra kube-system (53/UDP+TCP).
+# =============================================================================
+---
+# 1) DEFAULT DENY (todo pod del ns sin ingress ni egress por defecto)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: realistic-basic-network-policies
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# 2) ALLOW INTRA-NAMESPACE (ingress + egress entre pods del mismo ns)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: realistic-basic-network-policies
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: realistic-basic-network-policies
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: realistic-basic-network-policies
+---
+# 3) ALLOW INGRESS DESDE EL CONTROLADOR NGINX (ns "ingress" en microk8s)
+#    Sólo expone auth-service y api-service en :8080 (data-service no es público).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-ingress-controller
+  namespace: realistic-basic-network-policies
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [auth-service, api-service]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# 4) ALLOW EGRESS DNS (kube-system :53 udp/tcp) — necesario para resolver
+#    auth-service, api-service, data-service, postgres por nombre.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dns
+  namespace: realistic-basic-network-policies
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: realistic-moderate-rate-limiting
+  labels:
+    # C4 moderate: rate limiting a 1200 req/min por IP cliente, aplicado en el
+    # Ingress nginx. Variable controlada = throttling en gateway; el código
+    # de la app es idéntico al baseline (RATE_LIMIT_ENABLED=false a nivel app).
+    # Sin sidecars Istio/Linkerd para no contaminar con mTLS ni NetworkPolicies.
+    istio-injection: disabled
+    linkerd.io/inject: disabled
+    tier: realistic-moderate-rate-limiting
