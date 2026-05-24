@@ -61,6 +61,8 @@ log "k6 script: ${K6_SCRIPT}"
 # --- Manifiestos por escenario (aislados, cada uno con su ns + postgres + tls)
 C1_DIR="${ROOT_DIR}/experiments/01-api-gateway-realistic"
 C2_DIR="${ROOT_DIR}/experiments/02-mtls-service-mesh-realistic"
+C3_DIR="${ROOT_DIR}/experiments/03-network-policies-realistic"
+C4_DIR="${ROOT_DIR}/experiments/04-rate-limiting-realistic"
 
 # --- Definición de escenarios -----------------------------------------------
 # Formato: "control variant ns host port"
@@ -72,6 +74,12 @@ SCENARIOS=(
   "C2 baseline   realistic-without-mtls realistic-without-mtls.local 32167"
   "C2 istio-mtls   realistic-istio-mtls   realistic-istio-mtls.local   32012"
   "C2 linkerd-mtls realistic-linkerd-mtls realistic-linkerd-mtls.local 32167"
+  "C3 baseline   realistic-without-network-policies realistic-without-network-policies.local 32167"
+  "C3 basic      realistic-basic-network-policies   realistic-basic-network-policies.local   32167"
+  "C3 strict     realistic-strict-network-policies  realistic-strict-network-policies.local  32167"
+  "C4 baseline   realistic-without-rate-limiting    realistic-without-rate-limiting.local    32167"
+  "C4 moderate   realistic-moderate-rate-limiting   realistic-moderate-rate-limiting.local   32167"
+  "C4 strict     realistic-strict-rate-limiting     realistic-strict-rate-limiting.local     32167"
 )
 
 kctl() {
@@ -88,6 +96,8 @@ apply_scenario() {
   case "$ctrl" in
     C1) base="$C1_DIR" ;;
     C2) base="$C2_DIR" ;;
+    C3) base="$C3_DIR" ;;
+    C4) base="$C4_DIR" ;;
     *)  err "control desconocido: $ctrl"; return 1 ;;
   esac
   local dir="${base}/${var}"
