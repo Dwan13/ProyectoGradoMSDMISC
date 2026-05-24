@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: auth-service
-  namespace: realistic-mtls
+  namespace: realistic-without-mtls
 spec:
   replicas: 1
   selector:
@@ -12,7 +12,6 @@ spec:
     metadata:
       labels:
         app: auth-service
-        sidecar.istio.io/inject: "true"
     spec:
       containers:
       - env:
@@ -36,22 +35,21 @@ metadata:
   labels:
     app: auth-service
   name: auth-service
-  namespace: realistic-mtls
+  namespace: realistic-without-mtls
 spec:
   ports:
   - name: http
-    nodePort: 31084
     port: 8080
     targetPort: 8080
   selector:
     app: auth-service
-  type: NodePort
+  type: ClusterIP
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: data-service
-  namespace: realistic-mtls
+  namespace: realistic-without-mtls
 spec:
   replicas: 1
   selector:
@@ -61,7 +59,6 @@ spec:
     metadata:
       labels:
         app: data-service
-        sidecar.istio.io/inject: "true"
     spec:
       containers:
       - env:
@@ -102,7 +99,7 @@ metadata:
   labels:
     app: data-service
   name: data-service
-  namespace: realistic-mtls
+  namespace: realistic-without-mtls
 spec:
   ports:
   - name: http
@@ -115,7 +112,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: api-service
-  namespace: realistic-mtls
+  namespace: realistic-without-mtls
 spec:
   replicas: 1
   selector:
@@ -125,7 +122,6 @@ spec:
     metadata:
       labels:
         app: api-service
-        sidecar.istio.io/inject: "true"
     spec:
       containers:
       - env:
@@ -155,13 +151,12 @@ metadata:
   labels:
     app: api-service
   name: api-service
-  namespace: realistic-mtls
+  namespace: realistic-without-mtls
 spec:
   ports:
   - name: http
-    nodePort: 31081
     port: 8080
     targetPort: 8080
   selector:
     app: api-service
-  type: NodePort
+  type: ClusterIP

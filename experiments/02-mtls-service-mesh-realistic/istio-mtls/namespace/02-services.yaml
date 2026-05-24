@@ -1,16 +1,8 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: realistic
-  labels:
-    istio-injection: disabled
----
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: auth-service
-  namespace: realistic
+  namespace: realistic-istio-mtls
 spec:
   replicas: 1
   selector:
@@ -18,8 +10,6 @@ spec:
       app: auth-service
   template:
     metadata:
-      annotations:
-        linkerd.io/inject: enabled
       labels:
         app: auth-service
     spec:
@@ -45,22 +35,21 @@ metadata:
   labels:
     app: auth-service
   name: auth-service
-  namespace: realistic
+  namespace: realistic-istio-mtls
 spec:
   ports:
   - name: http
-    nodePort: 30084
     port: 8080
     targetPort: 8080
   selector:
     app: auth-service
-  type: NodePort
+  type: ClusterIP
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: data-service
-  namespace: realistic
+  namespace: realistic-istio-mtls
 spec:
   replicas: 1
   selector:
@@ -68,8 +57,6 @@ spec:
       app: data-service
   template:
     metadata:
-      annotations:
-        linkerd.io/inject: enabled
       labels:
         app: data-service
     spec:
@@ -112,7 +99,7 @@ metadata:
   labels:
     app: data-service
   name: data-service
-  namespace: realistic
+  namespace: realistic-istio-mtls
 spec:
   ports:
   - name: http
@@ -125,7 +112,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: api-service
-  namespace: realistic
+  namespace: realistic-istio-mtls
 spec:
   replicas: 1
   selector:
@@ -133,8 +120,6 @@ spec:
       app: api-service
   template:
     metadata:
-      annotations:
-        linkerd.io/inject: enabled
       labels:
         app: api-service
     spec:
@@ -166,14 +151,12 @@ metadata:
   labels:
     app: api-service
   name: api-service
-  namespace: realistic
+  namespace: realistic-istio-mtls
 spec:
   ports:
   - name: http
-    nodePort: 30081
     port: 8080
     targetPort: 8080
   selector:
     app: api-service
-  type: NodePort
----
+  type: ClusterIP

@@ -2,19 +2,19 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: kong-realistic-ingress
-  namespace: mubench-real
+  namespace: realistic
   annotations:
     kubernetes.io/ingress.class: kong
     konghq.com/protocols: "https"
-    konghq.com/strip-path: "false"
+    konghq.com/strip-path: "true"
 spec:
   ingressClassName: kong
   tls:
     - hosts:
-        - real-postgres.local
+        - realistic.local
       secretName: realistic-tls
   rules:
-    - host: real-postgres.local
+    - host: realistic.local
       http:
         paths:
           - path: /profile
@@ -24,21 +24,14 @@ spec:
                 name: api-service
                 port:
                   number: 8080
-          - path: /users
+          - path: /api
             pathType: Prefix
             backend:
               service:
                 name: api-service
                 port:
                   number: 8080
-          - path: /products
-            pathType: Prefix
-            backend:
-              service:
-                name: api-service
-                port:
-                  number: 8080
-          - path: /login
+          - path: /auth
             pathType: Prefix
             backend:
               service:

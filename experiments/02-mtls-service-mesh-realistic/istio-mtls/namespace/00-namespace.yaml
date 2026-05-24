@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: realistic-istio-mtls
+  labels:
+    # Activa inyección de sidecar de Istio en todos los pods del ns.
+    # Junto con PeerAuthentication STRICT (03-peerauth.yaml) garantiza
+    # que TODO el tráfico interno entre pods de este ns viaje cifrado por mTLS.
+    istio-injection: enabled

@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: realistic-gateway
-  namespace: realistic
+  namespace: realistic-linkerd-mtls
   annotations:
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/rewrite-target: /$2
@@ -10,11 +10,10 @@ spec:
   ingressClassName: public
   tls:
     - hosts:
-        - localhost
-        - "*.mubench.local"
-      secretName: mubench-tls
+        - realistic-linkerd-mtls.local
+      secretName: nginx-tls
   rules:
-    - host: realistic.local
+    - host: realistic-linkerd-mtls.local
       http:
         paths:
           - path: /auth(/|$)(.*)

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: realistic-linkerd-mtls
+  labels:
+    # Excluimos explícitamente Istio para evitar doble sidecar.
+    istio-injection: disabled
+  annotations:
+    # Linkerd usa annotation (no label) en el namespace para auto-inyectar
+    # el sidecar linkerd-proxy en todos los pods creados aquí. mTLS se
+    # aplica automáticamente entre proxies.
+    linkerd.io/inject: enabled
