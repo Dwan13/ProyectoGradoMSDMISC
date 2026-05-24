@@ -40,21 +40,6 @@ fi
 if [ -f "${ROOT_DIR}/k8s/ingress-nginx.yaml" ]; then
   microk8s kubectl apply -f "${ROOT_DIR}/k8s/ingress-nginx.yaml"
 fi
-# Aplicar Gateway y VirtualService Istio (si existen)
-if [ -f "${ROOT_DIR}/../Add-on/Istio/istio-gateway-tls.yaml" ]; then
-  microk8s kubectl apply -f "${ROOT_DIR}/../Add-on/Istio/istio-gateway-tls.yaml"
-fi
-
-# Aplicar Ingress Kong (si existe)
-if [ -f "${ROOT_DIR}/../Add-on/Kong/kong-ingress-tls.yaml" ]; then
-  microk8s kubectl apply -f "${ROOT_DIR}/../Add-on/Kong/kong-ingress-tls.yaml"
-fi
-
-if python3 "${ROOT_DIR}/generate-experiment-comparison-rule.py"; then
-  microk8s kubectl apply -f "${ROOT_DIR}/k8s/06-experiment-comparison-rule.yaml"
-else
-  log "Skipping experiment comparison rule (missing/invalid consolidated CSV)"
-fi
 
 log "Restarting app deployments to pull updated images"
 microk8s kubectl rollout restart deployment/auth-service -n "${NAMESPACE}"

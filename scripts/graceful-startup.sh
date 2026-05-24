@@ -42,7 +42,7 @@ usage() {
 Uso: bash scripts/graceful-startup.sh [opciones]
 
 Opciones:
-  --scenario <s1|s2|s3|s4|last>  Escenario a levantar
+  --scenario <s2|s3|s4|last>  Escenario a levantar
   --no-restore                    No usar snapshot previo
   --no-replica-restore            No restaurar replicas desde snapshot
   --yes                           Omitir confirmacion antes de aplicar setup
@@ -89,18 +89,16 @@ done
 scenario_menu() {
   echo ""
   echo "Selecciona escenario a levantar:"
-  echo "  1) s1 - Realistic baseline"
-  echo "  2) s2 - Postgres real"
-  echo "  3) s3 - MuBench advanced"
-  echo "  4) s4 - Semantic equivalent"
-  echo "  5) last - Usar ultimo escenario guardado"
-  read -r -p "Opcion [1-5]: " opt
+  echo "  1) s2 - Postgres real"
+  echo "  2) s3 - MuBench advanced"
+  echo "  3) s4 - Semantic equivalent"
+  echo "  4) last - Usar ultimo escenario guardado"
+  read -r -p "Opcion [1-4]: " opt
   case "$opt" in
-    1) SCENARIO="s1" ;;
-    2) SCENARIO="s2" ;;
-    3) SCENARIO="s3" ;;
-    4) SCENARIO="s4" ;;
-    5) SCENARIO="last" ;;
+    1) SCENARIO="s2" ;;
+    2) SCENARIO="s3" ;;
+    3) SCENARIO="s4" ;;
+    4) SCENARIO="last" ;;
     *)
       echo "Opcion invalida"
       exit 1
@@ -112,7 +110,7 @@ load_last_scenario() {
   if [[ -f "$STATE_FILE" ]]; then
     # shellcheck disable=SC1090
     source "$STATE_FILE"
-    if [[ -n "${LAST_SCENARIO:-}" ]] && [[ "${LAST_SCENARIO}" =~ ^s[1-4]$ ]]; then
+    if [[ -n "${LAST_SCENARIO:-}" ]] && [[ "${LAST_SCENARIO}" =~ ^s[2-4]$ ]]; then
       SCENARIO="$LAST_SCENARIO"
       RESTORED_FROM_SNAPSHOT=true
       log_info "Escenario restaurado desde snapshot: $SCENARIO"
@@ -197,10 +195,6 @@ kctl() {
 run_scenario_setup() {
   local setup_script=""
   case "$SCENARIO" in
-    s1)
-      log_info "Levantando S1 (realistic baseline)..."
-      setup_script="$SCRIPT_DIR/deploy-realistic-stack.sh"
-      ;;
     s2)
       log_info "Levantando S2 (postgres real)..."
       setup_script="$SCRIPT_DIR/setup-postgres-real-scenario.sh"
@@ -275,7 +269,7 @@ if [[ "$SCENARIO" == "last" ]]; then
   fi
 fi
 
-if [[ ! "$SCENARIO" =~ ^s[1-4]$ ]]; then
+if [[ ! "$SCENARIO" =~ ^s[2-4]$ ]]; then
   log_error "Escenario invalido: $SCENARIO"
   exit 1
 fi
@@ -292,7 +286,7 @@ log_info "Paso 1/6: Verificando MicroK8s..."
 
 if ! command -v microk8s &> /dev/null; then
   log_error "MicroK8s no está instalado"
-  log_info "Ejecuta: bash scripts/full-project-setup.sh"
+  log_info "Ejecuta: bash setup_mubench_env.sh"
   exit 1
 fi
 
@@ -413,6 +407,7 @@ Estado del Cluster:
 Servicios:
 EOF
 
+
 if kctl get pods -n "$ACTIVE_NS" &>/dev/null 2>&1; then
   echo "  • Pods en '$ACTIVE_NS': $(kctl get pods -n "$ACTIVE_NS" --no-headers 2>/dev/null | wc -l)"
   
@@ -429,11 +424,11 @@ cat << EOF
 
 Próximos pasos:
 
-  1. Para ejecutar tests completos (1 VU × 12 escenarios):
-     bash scripts/run-all-controls-experiments.sh
+  1. Para campaña reproducible S2:
+    bash scripts/run-s2-final-repro.sh --execute --continue-on-readiness-fail
 
-  2. Para tests de escalabilidad (1→5→10→20 VUs):
-     bash scripts/run-scaling-tests.sh
+  2. Para campaña integrada S6:
+    bash scripts/run-s6-integrated-repro.sh --execute --continue-on-readiness-fail
 
   3. Para test individual:
      bash scripts/run-k6-benchmark.sh --control C1 --variant baseline --vus 1
