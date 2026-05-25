@@ -134,47 +134,256 @@ ProyectoGradoMSDMISC/
 
 ## Requisitos
 
-- Kubernetes (MicroK8s recomendado)
-- Addons habilitados: `dns`, `ingress`, `metrics-server`, `registry`
-- Istio instalado (para C1/istio y C2/istio-mtls)
-- Linkerd instalado (para C2/linkerd-mtls)
-- Kong Ingress Controller (para C1/kong)
-- k6 >= 0.45
-- Python 3 (consolidacion de resultados)
-- Imagenes publicadas en registry local `localhost:32000/mubench/`
+### Hardware mínimo
+
+| Recurso | Mínimo | Recomendado |
+|---|---|---|
+| CPU | 4 vCPU | 8 vCPU |
+| RAM | 8 GB | 16 GB |
+| Disco | 30 GB libres | 60 GB libres (SSD) |
+
+La campaña completa (12 escenarios × 4 niveles de VUS × 8 réplicas = 384 reps, ~20s c/u + setup) toma aproximadamente **6–10 horas** según el hardware. El experimento es CPU-bound durante la carga de k6 y disk-bound durante los rollouts.
+
+### Sistema operativo
+
+Validado en **Ubuntu 22.04 LTS** (también compatible con WSL2 + Ubuntu si se usa MicroK8s nativo de Linux).
+
+### Software base
+
+| Herramienta | Versión probada | Instalación |
+|---|---|---|
+| MicroK8s | 1.28+ | `sudo snap install microk8s --classic` |
+| k6 | ≥ 0.45 | `bash scripts/install_k6.sh` |
+| Python | ≥ 3.10 | nativo en Ubuntu 22.04 |
+| Docker / buildah | cualquiera reciente | `sudo snap install docker` o `apt install docker.io` |
+| Istio CLI (`istioctl`) | 1.20+ | https://istio.io/latest/docs/setup/getting-started/ |
+| Linkerd CLI (`linkerd`) | edge-24.x | https://linkerd.io/2/getting-started/ |
+| Kong Ingress Controller | 3.x | helm (paso 3 de la replicación) |
 
 ---
 
-## Ejecucion
+## Replicación paso a paso
 
-### Ejecutar la campana completa (12 escenarios)
+> Todos los comandos se ejecutan desde la raíz del repositorio. Asume usuario con `sudo` y que `microk8s` está agregado al grupo del usuario (`sudo usermod -a -G microk8s $USER && newgrp microk8s`).
+
+### Paso 1 — Clonar el repositorio
 
 ```bash
-bash scripts/run-crud-experiment.sh --vus 20 --replicas 5 --duration 60s
+git clone https://github.com/Dwan13/ProyectoGradoMSDMISC.git
+cd ProyectoGradoMSDMISC
 ```
 
-### Ejecutar un solo control
+### Paso 2 — Provisionar MicroK8s
 
 ```bash
-bash scripts/run-crud-experiment.sh --scenario C1
-bash scripts/run-crud-experiment.sh --scenario kong
+sudo snap install microk8s --classic --channel=1.28/stable
+sudo usermod -a -G microk8s $USER
+newgrp microk8s
+
+# Habilitar addons necesarios
+microk8s enable dns
+microk8s enable ingress
+microk8s enable metrics-server
+microk8s enable registry            # registry local en localhost:32000
+microk8s enable hostpath-storage    # PVCs para PostgreSQL
+microk8s enable observability       # Prometheus + Grafana + kube-state-metrics
+
+# Esperar a que todo esté Ready
+microk8s status --wait-ready
 ```
 
-### Con calentamiento previo
+### Paso 3 — Instalar service meshes e ingress alternativos
 
 ```bash
+# Istio (necesario para C1/istio y C2/istio-mtls)
+curl -L https://istio.io/downloadIstio | ISTIO_VERSION=1.20.0 sh -
+cd istio-1.20.0 && sudo cp bin/istioctl /usr/local/bin/ && cd ..
+istioctl install --set profile=demo -y
+
+# Linkerd (necesario para C2/linkerd-mtls)
+curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install | sh
+export PATH=$HOME/.linkerd2/bin:$PATH
+linkerd check --pre
+linkerd install --crds | microk8s kubectl apply -f -
+linkerd install | microk8s kubectl apply -f -
+linkerd check
+
+# Kong Ingress Controller (necesario para C1/kong)
+microk8s helm3 repo add kong https://charts.konghq.com
+microk8s helm3 repo update
+microk8s helm3 install kong kong/kong -n kong --create-namespace \
+  --set ingressController.installCRDs=false
+```
+
+### Paso 4 — Instalar k6 y dependencias Python
+
+```bash
+# k6 (cliente de carga)
+bash scripts/install_k6.sh
+
+# Python: solo se necesitan numpy, pandas, scipy, matplotlib para los reportes
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install numpy pandas scipy matplotlib
+```
+
+### Paso 5 — Construir y publicar imágenes en el registry local
+
+Los 3 microservicios (`api-service`, `auth-service`, `data-service`) usan el mismo Dockerfile (FastAPI sobre Python 3.11-slim) y se sirven desde `localhost:32000/mubench/<servicio>:v1`.
+
+```bash
+for svc in api-service auth-service data-service; do
+  docker build -t localhost:32000/mubench/${svc}:v1 RealisticServices/${svc}/
+  docker push localhost:32000/mubench/${svc}:v1
+done
+```
+
+Verifica:
+
+```bash
+curl -s http://localhost:32000/v2/_catalog
+# Esperado: {"repositories":["mubench/api-service","mubench/auth-service","mubench/data-service"]}
+```
+
+### Paso 6 — Registrar los hosts virtuales en `/etc/hosts`
+
+Cada escenario usa un host TLS distinto para evitar colisión de Ingress. Agrega de una vez:
+
+```bash
+sudo tee -a /etc/hosts <<'EOF'
+127.0.0.1  realistic.local
+127.0.0.1  realistic-istio.local
+127.0.0.1  realistic-istio-mtls.local
+127.0.0.1  realistic-without-mtls.local
+127.0.0.1  realistic-linkerd-mtls.local
+127.0.0.1  realistic-without-network-policies.local
+127.0.0.1  realistic-basic-network-policies.local
+127.0.0.1  realistic-strict-network-policies.local
+127.0.0.1  realistic-without-rate-limiting.local
+127.0.0.1  realistic-moderate-rate-limiting.local
+127.0.0.1  realistic-strict-rate-limiting.local
+EOF
+```
+
+> Si el cluster corre en otra máquina, reemplaza `127.0.0.1` por la IP del nodo.
+
+### Paso 7 — Levantar el stack de observabilidad (opcional pero recomendado)
+
+```bash
+bash scripts/monitoring-up.sh
+```
+
+Esto escala Grafana, Prometheus y el K8s Dashboard a 1 réplica y abre port-forwards:
+
+- Grafana → http://localhost:3000  (admin / `microk8s kubectl -n monitoring get secret prometheus-grafana -o jsonpath='{.data.admin-password}' | base64 -d`)
+- Prometheus → http://localhost:9090
+- Dashboard → https://localhost:10443  (token en `/tmp/dash-token.txt`)
+
+Para mantener los port-forwards vivos durante runs largos:
+
+```bash
+nohup bash scripts/keep-portforwards.sh > /tmp/pf-keeper.log 2>&1 &
+```
+
+Apagar al terminar:
+
+```bash
+bash scripts/monitoring-down.sh
+```
+
+### Paso 8 — Smoke test (1 escenario, 1 réplica)
+
+Antes de la campaña completa, valida que todo funciona con un solo escenario:
+
+```bash
+bash scripts/run-crud-experiment.sh \
+  --scenario kong \
+  --vus 5 \
+  --replicas 1 \
+  --duration 20s
+```
+
+Salida esperada: `[ ok ]` en cada paso (apply manifests → rollout → smoke → k6 → metrics). Resultados en `Testing/results/auto_runs/crud_vus5_n1_<TIMESTAMP>/`.
+
+Si falla, revisa:
+- `kubectl get pods -A | grep -v Running` (pods no listos)
+- `Testing/results/auto_runs/.../invalid-scenarios.csv` (motivo del rechazo)
+- `Testing/results/auto_runs/.../logs/*.log` (output crudo de k6)
+
+### Paso 9 — Ejecutar la campaña completa (matriz factorial)
+
+```bash
+nohup bash scripts/run-crud-full-grid.sh > /tmp/crud-full-grid.log 2>&1 &
+tail -f /tmp/crud-full-grid.log
+```
+
+**Matriz por defecto**: 4 controles × 3 variantes × 4 niveles VUS (1, 5, 10, 20) × 8 réplicas = **384 reps**, ~20s c/u.
+
+Override de parámetros vía env vars:
+
+```bash
+REPLICAS=5 DURATION=30s VUS_LEVELS="1 5 10 20 50" \
+  bash scripts/run-crud-full-grid.sh
+```
+
+Salida consolidada en `Testing/results/auto_runs/crud_grid_<TIMESTAMP>/`:
+
+- `results_all.csv` — un row por réplica con latencias, throughput, checks
+- `resource_metrics_all.csv` — CPU/mem por pod después de cada réplica
+- `grid.log` — log maestro del grid
+
+### Paso 10 — Generar análisis estadístico y reporte
+
+```bash
+# Análisis Kruskal-Wallis + tamaño de efecto (ε²)
+python3 scripts/anova_overhead.py \
+  Testing/results/auto_runs/crud_grid_<TIMESTAMP>/results_all.csv
+
+# Reporte LaTeX con boxplots PNG/PDF
+python3 scripts/build_overhead_report.py \
+  --input Testing/results/auto_runs/crud_grid_<TIMESTAMP>/results_all.csv \
+  --output Testing/results/auto_runs/crud_grid_<TIMESTAMP>/report/
+```
+
+Salida: capítulo `.tex` listo para incluir en la tesis + figuras `.png/.pdf` por control.
+
+### Ejecución dirigida (subconjuntos)
+
+```bash
+# Un control completo
+bash scripts/run-crud-experiment.sh --scenario C2
+
+# Una variante específica
+bash scripts/run-crud-experiment.sh --scenario istio-mtls
+
+# Con warmup (recomendado para mediciones definitivas)
 bash scripts/run-crud-experiment.sh --vus 20 --replicas 5 --duration 60s --warmup 30
 ```
 
-### Parametros disponibles
+### Parámetros del orquestador
 
-| Parametro | Por defecto | Descripcion |
+| Parámetro | Por defecto | Descripción |
 |---|---|---|
 | `--vus` | 20 | Virtual Users concurrentes en k6 |
-| `--replicas` | 5 | Repeticiones por escenario (para significancia estadistica) |
-| `--duration` | `60s` | Duracion de cada run k6 |
-| `--warmup` | 0 | Segundos de trafico previo para estabilizar caches |
+| `--replicas` | 5 | Repeticiones por escenario (para significancia estadística) |
+| `--duration` | `60s` | Duración de cada run k6 |
+| `--warmup` | 0 | Segundos de tráfico previo para estabilizar caches |
 | `--scenario` | (todos) | Filtro por nombre parcial (ej: `kong`, `C2`, `istio-mtls`) |
+
+---
+
+## Troubleshooting
+
+| Síntoma | Diagnóstico | Solución |
+|---|---|---|
+| `image pull backoff` | El nodo no resuelve `localhost:32000` | Verifica `microk8s enable registry` y que las imágenes estén publicadas (`curl localhost:32000/v2/_catalog`) |
+| Pods Istio sin sidecar | Falta label en el namespace | El orquestador inyecta `istio-injection=enabled` automáticamente; si falla manual: `kubectl label ns <ns> istio-injection=enabled --overwrite` |
+| `connection refused` en k6 | El Ingress aún no está listo | El orquestador hace smoke test antes de cada run; revisa `kubectl get pods -n ingress` |
+| Rollouts con timeout | Recursos insuficientes | Aumenta RAM del host o reduce `VUS_LEVELS` a `"1 5"` |
+| Hosts `*.local` no resuelven | Falta entrada en `/etc/hosts` | Repite el Paso 6 |
+| Linkerd no inyecta proxy | mTLS habilitado pero sin annotation | Verifica `kubectl get ns realistic-linkerd-mtls -o yaml \| grep linkerd.io/inject` |
+| Grafana sin métricas | `metrics-server` o `kube-state-metrics` caídos | `microk8s status` y `kubectl get pods -n observability` |
 
 ---
 
