@@ -1,0 +1,106 @@
+@startuml estados-escenario
+!theme plain
+title Diagrama de Estados - Ciclo de Vida de un Escenario
+
+skinparam state {
+  BackgroundColor #E8F4FD
+  BorderColor #2980B9
+  ArrowColor #2980B9
+}
+skinparam backgroundColor #FAFAFA
+
+[*] --> Pendiente : Escenario en FILTERED[]
+
+state Pendiente {
+  note : En cola de ejecucion\nsecuencial
+}
+
+Pendiente --> Aplicando : apply_scenario()
+
+state Aplicando {
+  state "kubectl apply namespace/" as ns_apply
+  state "kubectl apply *.yaml" as yaml_apply
+  ns_apply --> yaml_apply
+}
+
+Aplicando --> EsperandoRollout : kubectl rollout status\n(4 deployments × 180s max)
+
+state EsperandoRollout {
+  state "auth-service: Available?" as ws1
+  state "api-service: Available?" as ws2
+  state "data-service: Available?" as ws3
+  state "postgres: Available?" as ws4
+  ws1 --> ws2
+  ws2 --> ws3
+  ws3 --> ws4
+}
+
+EsperandoRollout --> SmokeChecking : rollouts OK\n(con warnings si timeout)
+
+state SmokeChecking {
+  state "Intento 1..15\ncada 2s" as tries
+  state "POST /auth/login\ncurl --resolve HOST:PORT:127.0.0.1" as smoke_req
+  tries --> smoke_req
+}
+
+SmokeChecking --> Invalido : 15 intentos fallidos\nno hay access_token
+SmokeChecking --> Listo : access_token recibido
+
+state Invalido {
+  note : Registrar en invalid-scenarios.csv\nREPLICAS filas reason=smoke_failed\nSaltar a proximo escenario
+}
+
+Invalido --> [*] : continuar con siguiente
+
+state Listo {
+  note : Smoke OK
+}
+
+Listo --> Warmup : if WARMUP > 0
+
+state Warmup {
+  state "Obtener JWT token" as wt
+  state "GET /api/products\ndurante N segundos" as wloop
+  wt --> wloop
+  note : Estabiliza caches:\nPostgres buffers, FastAPI pools,\nconfiguracion ingress, JIT
+}
+
+Listo --> CapturandoEstado : if WARMUP == 0
+Warmup --> CapturandoEstado
+
+state CapturandoEstado {
+  state "kubectl get deploy,svc,ingress,pod -o yaml" as dump
+  state "Guardar en state/Cx_variant.yaml" as save
+  dump --> save
+  note : Una sola captura por escenario\n(no por replica)
+}
+
+CapturandoEstado --> EjecutandoReplicas
+
+state EjecutandoReplicas {
+  state "Replica r = 1" as r1
+  state "k6 run\n--vus N --duration D\n--summary-export JSON" as k6run
+  state "collect_resources()\nkubectl top pods" as collect
+  state "r++" as inc
+  state "r > REPLICAS?" as check
+
+  r1 --> k6run
+  k6run --> collect : k6 terminado\n(exit 0 o 1)
+  collect --> inc : CPU/mem → resource_metrics.csv
+  inc --> check
+  check --> k6run : No - siguiente replica
+  check --> [*] : Si - fin replicas
+
+  note right of k6run : Genera:\n  summaries/Cx_var_repR.json\n  logs/Cx_var_repR.log
+  note right of collect : Timing: DESPUES del run\n(no durante pico de carga)
+}
+
+EjecutandoReplicas --> Completado
+
+state Completado {
+  note : Todas las replicas ejecutadas\nDatos en summaries/ y resource_metrics.csv
+}
+
+Completado --> [*] : continuar con siguiente escenario
+
+@enduml

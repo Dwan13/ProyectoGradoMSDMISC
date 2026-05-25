@@ -1,0 +1,62 @@
+@startuml casos-de-uso-api-gateway
+!theme plain
+title Experimento 01 - Casos de Uso: API Gateway
+
+left to right direction
+skinparam actorBackgroundColor #E8F4FD
+skinparam usecaseBackgroundColor #EAF4FB
+skinparam usecaseBorderColor #2980B9
+skinparam backgroundColor #FAFAFA
+
+actor "Cliente HTTP" as client
+actor "Administrador\nInfraestructura" as admin
+actor "Sistema de\nMonitoreo (k6)" as monitor
+
+actor "Nginx\nIngress" as nginx <<sistema>>
+actor "Istio\nGateway" as istio <<sistema>>
+actor "Kong\nIngress" as kong <<sistema>>
+
+rectangle "Experimento 01 - API Gateway" {
+
+  usecase "UC01: Autenticarse\nvia /login" as UC01
+  usecase "UC02: Obtener perfil\nvia /profile" as UC02
+  usecase "UC03: Listar usuarios\nvia /users" as UC03
+  usecase "UC04: Crear usuario\nvia POST /users" as UC04
+  usecase "UC05: Enrutar\npeticion HTTPS" as UC05
+  usecase "UC06: Terminar\nTLS" as UC06
+  usecase "UC07: Reescribir\npath de la ruta" as UC07
+  usecase "UC08: Validar\ntoken JWT" as UC08
+  usecase "UC09: Ejecutar\ncarga de prueba" as UC09
+  usecase "UC10: Desplegar\nconfiguracion" as UC10
+  usecase "UC11: Aplicar\nmanifiestos YAML" as UC11
+  usecase "UC12: Seleccionar\nbackend segun ruta" as UC12
+
+  UC01 .> UC06 : <<include>>
+  UC02 .> UC08 : <<include>>
+  UC03 .> UC08 : <<include>>
+  UC04 .> UC08 : <<include>>
+  UC05 .> UC06 : <<include>>
+  UC05 .> UC12 : <<include>>
+  UC07 .> UC05 : <<extend>>
+  UC11 .> UC10 : <<include>>
+}
+
+client --> UC01
+client --> UC02
+client --> UC03
+client --> UC04
+
+nginx --> UC05
+nginx --> UC07
+istio --> UC05
+kong --> UC05
+
+monitor --> UC09
+UC09 .> UC01 : <<include>>
+UC09 .> UC02 : <<include>>
+UC09 .> UC03 : <<include>>
+UC09 .> UC04 : <<include>>
+
+admin --> UC10
+admin --> UC11
+@enduml

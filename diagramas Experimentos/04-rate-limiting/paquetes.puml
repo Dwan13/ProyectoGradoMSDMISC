@@ -1,0 +1,88 @@
+@startuml paquetes-rate-limiting
+!theme plain
+title Experimento 04 - Diagrama de Paquetes: Namespaces Rate Limiting
+
+skinparam packageBackgroundColor #FDEDEC
+skinparam packageBorderColor #E74C3C
+skinparam backgroundColor #FAFAFA
+skinparam componentStyle rectangle
+
+package "Cluster Kubernetes - Experimento Rate Limiting" {
+
+  package "realistic-without-rate-limiting\n[Baseline - Sin limite]" #EAFAF1 {
+    component "Nginx Ingress\n(sin anotaciones de limite)" as nginx_b
+    component "api-service\n(RATE_LIMIT_ENABLED=false)" as api_b
+    component "auth-service" as auth_b
+    component "data-service" as data_b
+    component "PostgreSQL" as pg_b
+    component "postgres-secret" as sec_b
+    component "realistic-tls (Secret)" as tls_b
+    note bottom : Todas las peticiones procesadas\nSin HTTP 503\nLatencia base sin overhead
+  }
+
+  package "realistic-moderate-rate-limiting\n[Moderate - 1200 rpm]" #FEF9E7 {
+    rectangle "Nginx Ingress Config" #FDEBD0 {
+      component "limit-rpm: 1200\n(20 req/seg por IP)" as limit_mod
+      component "limit-burst-multiplier: 1\n(sin cola de espera)" as burst_mod
+      component "HTTP 503 al exceder\n1200 rpm" as reject_mod
+    }
+    component "api-service\n(RATE_LIMIT_ENABLED=false)" as api_mod
+    component "auth-service" as auth_mod
+    component "data-service" as data_mod
+    component "PostgreSQL" as pg_mod
+    component "realistic-tls (Secret)" as tls_mod
+    note bottom : Proteccion moderada\nPico > 1200 rpm -> HTTP 503\nApropiado para uso normal
+  }
+
+  package "realistic-strict-rate-limiting\n[Strict - 300 rpm]" #FDEDEC {
+    rectangle "Nginx Ingress Config" #FADBD8 {
+      component "limit-rpm: 300\n(5 req/seg por IP)" as limit_str
+      component "limit-burst-multiplier: 1\n(sin cola de espera)" as burst_str
+      component "HTTP 503 al exceder\n300 rpm" as reject_str
+    }
+    component "api-service\n(RATE_LIMIT_ENABLED=false)" as api_str
+    component "auth-service" as auth_str
+    component "data-service" as data_str
+    component "PostgreSQL" as pg_str
+    component "realistic-tls (Secret)" as tls_str
+    note bottom : Proteccion agresiva\nPico > 300 rpm -> HTTP 503\nDDoS protection / recursos criticos
+  }
+
+  package "ingress-nginx\n[Controlador Nginx]" #F0F3F4 {
+    component "nginx-controller\n(gestiona rate limiting)" as nginx_ctrl
+    component "limit_req_zone\n(contador por IP)" as zone
+    note bottom : Zone size: 10m por defecto\nContador basado en $binary_remote_addr
+  }
+}
+
+nginx_ctrl --> nginx_b : gestiona (sin limite)
+nginx_ctrl --> limit_mod : gestiona (1200 rpm)
+nginx_ctrl --> limit_str : gestiona (300 rpm)
+zone ..> limit_mod : implementa contador
+zone ..> limit_str : implementa contador
+
+nginx_b --> api_b : todas las peticiones
+api_b --> auth_b
+api_b --> data_b
+data_b --> pg_b
+auth_b --> pg_b
+
+limit_mod --> api_mod : peticiones <= 1200 rpm
+reject_mod ..> api_mod : HTTP 503 > 1200 rpm
+api_mod --> auth_mod
+api_mod --> data_mod
+data_mod --> pg_mod
+auth_mod --> pg_mod
+
+limit_str --> api_str : peticiones <= 300 rpm
+reject_str ..> api_str : HTTP 503 > 300 rpm
+api_str --> auth_str
+api_str --> data_str
+data_str --> pg_str
+auth_str --> pg_str
+
+tls_b ..> nginx_b : TLS cert
+tls_mod ..> limit_mod : TLS cert
+tls_str ..> limit_str : TLS cert
+
+@enduml

@@ -1,0 +1,91 @@
+@startuml flujo-k6-crud
+!theme plain
+title Diagrama de Flujo - realistic-crud-flow.js (k6)\nFlujo CRUD completo por iteracion de VU
+
+skinparam activity {
+  BackgroundColor #D5F5E3
+  BorderColor #27AE60
+  DiamondBackgroundColor #FEF9E7
+  DiamondBorderColor #F39C12
+}
+skinparam backgroundColor #FAFAFA
+
+start
+
+note
+  Ejecutado por cada VU (Virtual User)
+  en paralelo durante DURATION (ej: 60s)
+  Cada iteracion es un ciclo CRUD completo
+end note
+
+:Inicio de iteracion (VU #N, iter #M);
+
+:login()\nPOST AUTH_BASE/login\n(username:"demo", password:"demo123");
+
+if (status 200 AND has access_token?) then (Si)
+  :loginOk.add(1)\ntoken = access_token;
+else (No)
+  :loginFail.add(1) | token = null;
+  :sleep(1s) - Early return: no hay token;
+  detach
+endif
+
+:listProducts(token)\nGET API_BASE/products?limit=20&offset=0\nAuthorization: Bearer token;
+
+:listLatency.add(duration)\ncheck: status 200 | listOk o listFail++;
+
+:createProduct(token, VU, ITER)\nPOST API_BASE/products\n(name:"k6-prod-vuN-itM-TS", price:random);
+
+if (status 200 AND data.id presente?) then (Si)
+  :createOk.add(1)\nid = data.id | createLatency.add(duration);
+else (No)
+  :createFail.add(1) | id = null;
+  :sleep(0.3s) - Sin id: saltar read/update/delete;
+  detach
+endif
+
+:readProduct(token, id)\nGET API_BASE/products/:id\nAuthorization: Bearer token;
+
+:readLatency.add(duration)\ncheck: status 200 | readOk o readFail++;
+
+:updateProduct(token, id)\nPUT API_BASE/products/:id\n(name:"k6-prod-id-upd", price:99.99);
+
+:updateLatency.add(duration)\ncheck: status 200 | updateOk o updateFail++;
+
+:readProduct(token, id) - Segunda lectura post-update\nGET API_BASE/products/:id;
+
+:readLatency.add(duration) x2\nreadOk o readFail++;
+
+:deleteProduct(token, id)\nDELETE API_BASE/products/:id;
+
+if (status 200 OR 204?) then (Si)
+  :deleteOk.add(1);
+else (No)
+  :deleteFail.add(1);
+endif
+
+note right : Si delete falla el producto queda en DB.\nAcumulacion posible bajo alta carga.
+
+:deleteLatency.add(duration);
+
+:sleep(0.3s) - pacing entre iteraciones;
+
+note right
+  Requests por iteracion: 7
+  login + list + create +
+  read + update + read + delete
+end note
+
+:Fin de iteracion - siguiente si aun hay tiempo;
+
+stop
+
+note bottom
+  Thresholds (criterio pass/fail):
+  - http_req_failed: rate < 5%
+  - http_req_duration: p95 < 700ms
+  - checks: rate > 95%
+  - crud_create/read/update/delete_success_total: count > 0
+  Metricas: Counter ok/fail + Trend latency_ms por operacion
+end note
+@enduml

@@ -1,0 +1,111 @@
+@startuml secuencia-orquestador
+!theme plain
+title Diagrama de Secuencia - Ejecucion de un Escenario Completo\n(Ejemplo: C1/kong, replicas=2)
+
+skinparam sequenceArrowThickness 2
+skinparam backgroundColor #FAFAFA
+skinparam participantBackgroundColor #E8F4FD
+skinparam participantBorderColor #2980B9
+
+actor "Investigador" as R
+participant "run-crud-experiment.sh" as ORCH
+participant "kubectl / microk8s" as KCTL
+participant "curl" as CURL
+participant "k6\n(realistic-crud-flow.js)" as K6
+participant "Kubernetes\nAPI Server" as K8S
+participant "Namespace\n(realistic-kong)" as NS
+participant "Python\nConsolidator" as PY
+
+== Inicializacion ==
+R -> ORCH : bash run-crud-experiment.sh\n--vus 20 --replicas 2 --duration 60s --scenario kong
+
+ORCH -> ORCH : Crear RUN_DIR\nTesting/results/auto_runs/crud_vus20_n2_TIMESTAMP/
+ORCH -> ORCH : Inicializar invalid-scenarios.csv\nresource_metrics.csv
+
+== Aplicar Escenario: C1/kong ==
+
+ORCH -> KCTL : apply_scenario("C1", "kong")\nkubectl apply -f experiments/01-api-gateway-realistic/kong/namespace/
+KCTL -> K8S : Crear Namespace realistic-kong\nAplicar: postgres-secret, TLS-secret, postgres deployment, services
+K8S --> KCTL : recursos creados
+
+ORCH -> KCTL : kubectl apply -f experiments/01-api-gateway-realistic/kong/*.yaml
+KCTL -> K8S : Aplicar: Ingress Kong, services kong
+K8S --> KCTL : recursos aplicados
+
+== Esperar Rollout ==
+
+ORCH -> KCTL : wait_rollout("realistic-kong")
+loop para cada deploy: auth-service, api-service, data-service, postgres
+  KCTL -> K8S : kubectl rollout status deploy/{svc} -n realistic-kong --timeout=180s
+  K8S --> KCTL : Available / Timeout
+end
+KCTL --> ORCH : rollouts completados
+
+== Smoke Check ==
+
+ORCH -> CURL : smoke_check("realistic.local", 30443)\nIntentos 1..15 cada 2s
+loop hasta exito o 15 intentos
+  CURL -> NS : HTTPS POST realistic.local:30443/auth/login\n{username:"demo",password:"demo123"}\n--resolve realistic.local:30443:127.0.0.1
+  NS --> CURL : 200 {access_token} / timeout / error
+end
+CURL --> ORCH : smoke OK / FAIL
+
+alt smoke FAIL
+  ORCH -> ORCH : Registrar 2 filas en invalid-scenarios.csv\n(reason: smoke_failed)
+  note right : Saltar al siguiente escenario
+else smoke OK
+
+  == Warmup (si WARMUP > 0) ==
+
+  ORCH -> CURL : warmup_phase (si --warmup N)
+  CURL -> NS : POST /auth/login → token
+  loop durante N segundos
+    CURL -> NS : GET /api/products (con token)
+  end
+
+  == Dump Estado ==
+
+  ORCH -> KCTL : dump_state("kong", "realistic-kong", "C1")
+  KCTL -> K8S : kubectl get deploy,svc,ingress,gateway,vs,pod -n realistic-kong -o yaml
+  K8S --> KCTL : YAML completo
+  KCTL --> ORCH : escrito en state/C1_kong.yaml
+
+  == Replica 1 ==
+
+  ORCH -> K6 : k6 run\n  -e AUTH_BASE="https://realistic.local:30443/auth"\n  -e API_BASE="https://realistic.local:30443/api"\n  -e RESOLVE="realistic.local:127.0.0.1"\n  --vus 20 --duration 60s\n  --summary-export summaries/C1_kong_rep1.json
+
+  loop Por cada VU (20 concurrentes) durante 60s
+    K6 -> NS : POST /auth/login → token
+    K6 -> NS : GET /api/products
+    K6 -> NS : POST /api/products (create)
+    K6 -> NS : GET /api/products/{id} (read)
+    K6 -> NS : PUT /api/products/{id} (update)
+    K6 -> NS : GET /api/products/{id} (read post-update)
+    K6 -> NS : DELETE /api/products/{id}
+    K6 -> K6 : sleep(0.3s)
+  end
+
+  K6 --> ORCH : exit 0 (thresholds OK) / exit 1 (thresholds fail)
+  note right : summaries/C1_kong_rep1.json generado\nlogs/C1_kong_rep1.log generado
+
+  ORCH -> KCTL : collect_resources("realistic-kong","C1","kong","1")\nkubectl top pods -n realistic-kong
+  KCTL --> ORCH : CPU/mem de api,auth,data,postgres
+  ORCH -> ORCH : Append a resource_metrics.csv
+
+  == Replica 2 ==
+
+  ORCH -> K6 : k6 run ... --summary-export summaries/C1_kong_rep2.json
+  K6 --> ORCH : exit 0/1
+  ORCH -> KCTL : collect_resources(..., "2")
+  KCTL --> ORCH : CPU/mem
+end
+
+== Consolidacion Final (despues de todos los escenarios) ==
+
+ORCH -> PY : Ejecutar heredoc Python
+PY -> PY : Leer summaries/*.json\nLeer resource_metrics.csv\nMerge por (ctrl, variant, rep)
+PY --> ORCH : Escribir results.csv (N filas)
+
+ORCH --> R : "Run completo. Resultados: RUN_DIR"\nresults.csv: N lineas
+
+@enduml

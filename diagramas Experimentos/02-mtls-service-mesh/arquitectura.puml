@@ -1,0 +1,87 @@
+@startuml arquitectura-mtls
+!theme plain
+title Experimento 02 - Arquitectura mTLS Service Mesh (Comparativa)
+
+skinparam componentStyle rectangle
+skinparam backgroundColor #FAFAFA
+
+actor "Cliente" as client
+
+rectangle "Baseline - Sin mTLS" #EAFAF1 {
+  component "[Nginx Ingress]" as nginx_b
+  component "[api-service\n:8080 / NodePort:30081]" as api_b
+  component "[auth-service\n:8080 / NodePort:30084]" as auth_b
+  component "[data-service\n:8080]" as data_b
+  database "PostgreSQL 15" as pg_b
+  note right of nginx_b : namespace: realistic-without-mtls\nistio-injection: disabled\nlinkerd.io/inject: disabled\nComunicacion: HTTP plano
+}
+
+rectangle "Istio mTLS - Strict Mode" #EAF4FB {
+  component "[Istio IngressGateway]" as istio_gw
+  component "[PeerAuthentication\nmode: STRICT]" as peer_auth
+  component "[DestinationRule\nISTIO_MUTUAL]" as dest_rule
+  rectangle "Pod api-service" #D6EAF8 {
+    component "[api-service]" as api_i
+    component "[Envoy Sidecar]" as sidecar_api
+  }
+  rectangle "Pod auth-service" #D6EAF8 {
+    component "[auth-service]" as auth_i
+    component "[Envoy Sidecar]" as sidecar_auth
+  }
+  rectangle "Pod data-service" #D6EAF8 {
+    component "[data-service]" as data_i
+    component "[Envoy Sidecar]" as sidecar_data
+  }
+  database "PostgreSQL 15" as pg_i
+  note right of peer_auth : namespace: realistic-istio-mtls\nTodo trafico pod-a-pod\nrequiere certificado mTLS\nHTTP plano RECHAZADO
+}
+
+rectangle "Linkerd mTLS - Automatico" #FDF2F8 {
+  component "[Nginx Ingress]" as nginx_l
+  rectangle "Pod api-service" #F9EBEA {
+    component "[api-service]" as api_l
+    component "[Linkerd Proxy]" as proxy_api
+  }
+  rectangle "Pod auth-service" #F9EBEA {
+    component "[auth-service]" as auth_l
+    component "[Linkerd Proxy]" as proxy_auth
+  }
+  rectangle "Pod data-service" #F9EBEA {
+    component "[data-service]" as data_l
+    component "[Linkerd Proxy]" as proxy_data
+  }
+  database "PostgreSQL 15" as pg_l
+  note right of nginx_l : namespace: realistic-linkerd-mtls\nlinkerd.io/inject: enabled\nmTLS automatico por Linkerd\nProxy mas liviano que Envoy
+}
+
+client --> nginx_b : HTTPS
+client --> istio_gw : HTTPS
+client --> nginx_l : HTTPS
+
+nginx_b --> api_b : HTTP plano
+api_b --> auth_b : HTTP plano
+api_b --> data_b : HTTP plano
+data_b --> pg_b : SQL
+auth_b --> pg_b : SQL
+
+istio_gw --> sidecar_api : HTTPS/mTLS
+sidecar_api <--> api_i : localhost
+sidecar_api --> sidecar_auth : mTLS mutuo
+sidecar_auth <--> auth_i : localhost
+sidecar_api --> sidecar_data : mTLS mutuo
+sidecar_data <--> data_i : localhost
+data_i --> pg_i : SQL
+auth_i --> pg_i : SQL
+peer_auth ..> api_i : enforces STRICT mTLS
+dest_rule ..> sidecar_api : ISTIO_MUTUAL
+
+nginx_l --> proxy_api : HTTPS
+proxy_api <--> api_l : localhost
+proxy_api --> proxy_auth : mTLS automatico
+proxy_auth <--> auth_l : localhost
+proxy_api --> proxy_data : mTLS automatico
+proxy_data <--> data_l : localhost
+data_l --> pg_l : SQL
+auth_l --> pg_l : SQL
+
+@enduml

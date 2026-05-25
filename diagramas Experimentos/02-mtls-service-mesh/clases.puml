@@ -1,0 +1,177 @@
+@startuml clases-mtls
+!theme plain
+title Experimento 02 - Diagrama de Clases: Recursos mTLS Service Mesh
+
+skinparam classBackgroundColor #EAF4FB
+skinparam classBorderColor #2980B9
+skinparam backgroundColor #FAFAFA
+
+package "Recursos de Seguridad - mTLS" {
+
+  abstract class ServiceMeshPolicy {
+    +apiVersion: String
+    +kind: String
+    +metadata: ObjectMeta
+    +spec: Object
+    --
+    {abstract} +enforce(): void
+  }
+
+  class PeerAuthentication {
+    +namespace: String
+    +selector: WorkloadSelector
+    +mtls_mode: STRICT | PERMISSIVE | DISABLE
+    --
+    +enforce(): void
+    +rejectPlainHTTP(): boolean
+    +requireClientCert(): boolean
+  }
+
+  class DestinationRule {
+    +host: String
+    +trafficPolicy: TrafficPolicy
+    +subsets: List<Subset>
+    --
+    +tlsMode: ISTIO_MUTUAL | SIMPLE | DISABLE
+    +enforce(): void
+  }
+
+  class IstioSidecar {
+    +name: String = "istio-proxy"
+    +image: String
+    +ports: List<ContainerPort>
+    --
+    +interceptPort: int = 15001
+    +healthPort: int = 15021
+    +generateCertificate(): Certificate
+    +terminateTLS(): boolean
+    +initiateMTLS(): boolean
+  }
+
+  class LinkerdProxy {
+    +name: String = "linkerd-proxy"
+    +image: String
+    +ports: List<ContainerPort>
+    --
+    +inboundPort: int = 4143
+    +outboundPort: int = 4140
+    +adminPort: int = 4191
+    +automaticMTLS(): boolean = true
+    +certificateRotation(): void
+  }
+
+  class SPIFFECertificate {
+    +spiffeID: String
+    +trustDomain: String
+    +namespace: String
+    +serviceAccount: String
+    --
+    +expiresAt: DateTime
+    +isValid(): boolean
+    +getURI(): String
+  }
+
+  class MeshService {
+    +name: String
+    +port: int = 8080
+    +namespace: String
+    +serviceAccount: String
+    --
+    +mtlsEnabled: boolean
+    +communicatesViaProxy(): boolean
+  }
+
+  class APIServiceMesh {
+    +name: String = "api-service"
+    +upstreamServices: List<String>
+    --
+    +callsAuth: AuthServiceMesh
+    +callsData: DataServiceMesh
+  }
+
+  class AuthServiceMesh {
+    +name: String = "auth-service"
+    +endpoints: /login, /validate
+    --
+    +requiresDB: boolean = true
+  }
+
+  class DataServiceMesh {
+    +name: String = "data-service"
+    +endpoints: /users, /products
+    --
+    +requiresDB: boolean = true
+  }
+
+  class NodePortService {
+    +type: NodePort
+    +apiNodePort: int = 30081
+    +authNodePort: int = 30084
+    --
+    +exposedDirectly: boolean = true
+  }
+
+  class ClusterIPService {
+    +type: ClusterIP
+    --
+    +internalOnly: boolean = true
+    +accessibleViaMesh: boolean = true
+  }
+
+  class Namespace {
+    +name: String
+    +istioInjection: enabled|disabled
+    +linkerdInject: enabled|disabled
+    --
+    +hasMeshSidecar(): boolean
+  }
+
+  class IstioControlPlane {
+    +name: String = "istiod"
+    +namespace: String = "istio-system"
+    --
+    +issueCertificates(): void
+    +pushPolicies(): void
+    +rotateKeys(): void
+  }
+
+  class LinkerdControlPlane {
+    +name: String = "linkerd-control-plane"
+    +namespace: String = "linkerd"
+    --
+    +issueCertificates(): void
+    +manageProxies(): void
+    +collectMetrics(): void
+  }
+}
+
+ServiceMeshPolicy <|-- PeerAuthentication
+ServiceMeshPolicy <|-- DestinationRule
+
+MeshService <|-- APIServiceMesh
+MeshService <|-- AuthServiceMesh
+MeshService <|-- DataServiceMesh
+
+APIServiceMesh --> AuthServiceMesh : llama con mTLS
+APIServiceMesh --> DataServiceMesh : llama con mTLS
+
+IstioSidecar --> SPIFFECertificate : usa
+LinkerdProxy --> SPIFFECertificate : genera automaticamente
+
+MeshService "1" --> "0..1" IstioSidecar : tiene (Istio)
+MeshService "1" --> "0..1" LinkerdProxy : tiene (Linkerd)
+
+PeerAuthentication --> Namespace : aplica a
+DestinationRule --> MeshService : configura trafico
+
+IstioControlPlane --> IstioSidecar : inyecta y gestiona
+IstioControlPlane --> PeerAuthentication : distribuye
+IstioControlPlane --> SPIFFECertificate : emite
+
+LinkerdControlPlane --> LinkerdProxy : gestiona
+LinkerdControlPlane --> SPIFFECertificate : emite
+
+NodePortService --> MeshService : expone (Baseline)
+ClusterIPService --> MeshService : expone (Istio/Linkerd)
+
+@enduml

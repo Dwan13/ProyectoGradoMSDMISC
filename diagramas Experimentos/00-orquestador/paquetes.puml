@@ -1,0 +1,97 @@
+@startuml paquetes-orquestador
+!theme plain
+title Diagrama de Paquetes - Estructura de Archivos del Experimento
+
+skinparam packageBackgroundColor #E8F4FD
+skinparam packageBorderColor #2980B9
+skinparam backgroundColor #FAFAFA
+skinparam componentStyle rectangle
+
+package "ProyectoGradoMSDMISC/\n[Raiz del Proyecto]" {
+
+  package "scripts/" #D6EAF8 {
+    component "run-crud-experiment.sh\n[ORQUESTADOR PRINCIPAL]" as orch
+    component "graceful-startup.sh\nfactorial-bootstrap.sh\nkeep-portforwards.sh\n... otros scripts" as other_scripts
+  }
+
+  package "experiments/" #EAFAF1 {
+    package "01-api-gateway-realistic/" #F0FFF4 {
+      component "baseline/ (nginx :32167)" as c1_base
+      component "kong/     (kong :30443)" as c1_kong
+      component "istio/    (istio :32012)" as c1_istio
+      note bottom : namespace/, *.yaml por config
+    }
+    package "02-mtls-service-mesh-realistic/" #F0FFF4 {
+      component "baseline/\nistio-mtls/\nlinkerd-mtls/" as c2
+    }
+    package "03-network-policies-realistic/" #F0FFF4 {
+      component "baseline/\nbasic/\nstrict/" as c3
+    }
+    package "04-rate-limiting-realistic/" #F0FFF4 {
+      component "baseline/\nmoderate/\nstrict/" as c4
+    }
+  }
+
+  package "RealisticServices/" #FEF9E7 {
+    package "k6/" #FDEBD0 {
+      component "realistic-crud-flow.js\n[SCRIPT K6 PRINCIPAL]" as k6_crud
+      component "realistic-flow.js" as k6_flow
+    }
+    package "api-service/" #FEF9E7 {
+      component "app.py\nDockerfile\nrequirements.txt" as api_src
+    }
+    package "auth-service/" #FEF9E7 {
+      component "app.py\nDockerfile\nrequirements.txt" as auth_src
+    }
+    package "data-service/" #FEF9E7 {
+      component "app.py\nDockerfile\nrequirements.txt\nmigrations/002_create_products.sql" as data_src
+    }
+    package "k8s/" #FEF9E7 {
+      component "00-namespace.yaml\n01-postgres.yaml\n02-services.yaml\n07-c1-ingress-gateway.yaml\n..." as k8s_base
+    }
+    component "controls/apply-control.sh" as apply_ctrl
+    component "deploy-realistic.sh" as deploy_sh
+  }
+
+  package "Testing/" #FDEDEC {
+    package "results/auto_runs/\ncrud_vusN_nM_TIMESTAMP/\n[GENERADO POR ORQUESTADOR]" #FADBD8 {
+      component "results.csv\n[CONSOLIDADO FINAL]" as results_csv
+      component "resource_metrics.csv" as res_csv
+      component "invalid-scenarios.csv" as inv_csv
+      package "summaries/" {
+        component "C1_baseline_rep1.json\nC1_kong_rep1.json\n... (60 archivos para 12×5)" as summaries
+      }
+      package "logs/" {
+        component "C1_baseline_rep1.log\n... (stdout k6)" as logs
+      }
+      package "state/" {
+        component "C1_baseline.yaml\nC1_kong.yaml\n... (12 dumps)" as state
+      }
+    }
+    component "analyze_s6_integrated_results.py\nconsolidate_all_metrics.py\nextract_clean_metrics.py\n... scripts de analisis" as analysis
+  }
+
+  package "diagramas Experimentos/" #F5EEF8 {
+    component "00-orquestador/ (este diagrama)\n01-api-gateway/\n02-mtls-service-mesh/\n03-network-policies/\n04-rate-limiting/" as diagrams
+  }
+}
+
+orch --> c1_base : apply_scenario(C1,baseline)
+orch --> c1_kong : apply_scenario(C1,kong)
+orch --> c1_istio : apply_scenario(C1,istio)
+orch --> c2 : apply_scenario(C2,*)
+orch --> c3 : apply_scenario(C3,*)
+orch --> c4 : apply_scenario(C4,*)
+orch --> k6_crud : k6 run
+orch --> summaries : --summary-export
+orch --> logs : stdout
+orch --> state : dump_state()
+orch --> res_csv : collect_resources()
+orch --> results_csv : python consolida
+
+k6_crud --> api_src : HTTPS /api/*
+k6_crud --> auth_src : HTTPS /auth/*
+
+results_csv --> analysis : input para analisis estadistico
+
+@enduml

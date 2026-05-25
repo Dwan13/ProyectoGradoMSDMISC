@@ -1,0 +1,67 @@
+@startuml casos-de-uso-mtls
+!theme plain
+title Experimento 02 - Casos de Uso: mTLS Service Mesh
+
+left to right direction
+skinparam actorBackgroundColor #EAF4FB
+skinparam usecaseBackgroundColor #D6EAF8
+skinparam usecaseBorderColor #2980B9
+skinparam backgroundColor #FAFAFA
+
+actor "Cliente HTTP" as client
+actor "Servicio API" as api_actor <<servicio>>
+actor "Servicio Auth" as auth_actor <<servicio>>
+actor "Administrador\nde Seguridad" as sec_admin
+actor "Herramienta\nde Prueba (k6)" as k6
+
+actor "Istio\nControl Plane" as istio <<sistema>>
+actor "Linkerd\nControl Plane" as linkerd <<sistema>>
+
+rectangle "Experimento 02 - mTLS Service Mesh" {
+
+  usecase "UC01: Enviar peticion\nHTTPS al Gateway" as UC01
+  usecase "UC02: Iniciar handshake\nmTLS entre servicios" as UC02
+  usecase "UC03: Validar certificado\nclient (mTLS mutuo)" as UC03
+  usecase "UC04: Establecer canal\ncifrado TLS" as UC04
+  usecase "UC05: Rechazar conexion\nHTTP plano (STRICT)" as UC05
+  usecase "UC06: Permitir conexion\nHTTP plano (Baseline)" as UC06
+  usecase "UC07: Rotar certificados\nautomaticamente" as UC07
+  usecase "UC08: Emitir certificado\nSPIFFE/X.509" as UC08
+  usecase "UC09: Aplicar politica\nPeerAuthentication" as UC09
+  usecase "UC10: Aplicar politica\nDestinationRule" as UC10
+  usecase "UC11: Ejecutar prueba\nde carga mixta" as UC11
+  usecase "UC12: Verificar\nmTLS activo" as UC12
+  usecase "UC13: Inyectar sidecar\nproxy automaticamente" as UC13
+
+  UC02 .> UC03 : <<include>>
+  UC02 .> UC04 : <<include>>
+  UC02 .> UC08 : <<include>>
+  UC05 .> UC09 : <<include>>
+  UC07 .> UC08 : <<include>>
+  UC13 .> UC09 : <<extend>>
+  UC12 .> UC04 : <<include>>
+  UC11 .> UC01 : <<include>>
+}
+
+client --> UC01
+api_actor --> UC02
+api_actor --> UC06
+auth_actor --> UC03
+
+sec_admin --> UC09
+sec_admin --> UC10
+sec_admin --> UC12
+
+istio --> UC08
+istio --> UC07
+istio --> UC09
+istio --> UC10
+istio --> UC13
+
+linkerd --> UC08
+linkerd --> UC07
+linkerd --> UC13
+
+k6 --> UC11
+
+@enduml

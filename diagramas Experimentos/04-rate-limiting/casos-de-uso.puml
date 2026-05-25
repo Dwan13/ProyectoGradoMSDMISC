@@ -1,0 +1,68 @@
+@startuml casos-de-uso-rate-limiting
+!theme plain
+title Experimento 04 - Casos de Uso: Rate Limiting
+
+left to right direction
+skinparam actorBackgroundColor #FDEDEC
+skinparam usecaseBackgroundColor #FADBD8
+skinparam usecaseBorderColor #E74C3C
+skinparam backgroundColor #FAFAFA
+
+actor "Cliente\nLegitimo" as client
+actor "Cliente con\nAlta Carga" as heavy_client #pink
+actor "Administrador\nde Infraestructura" as admin
+actor "Nginx Ingress\nController" as nginx <<sistema>>
+actor "Herramienta\nde Prueba (k6)" as k6
+
+rectangle "Experimento 04 - Rate Limiting" {
+
+  usecase "UC01: Enviar peticion\nHTTPS al ingress" as UC01
+  usecase "UC02: Evaluar tasa\nde peticiones por IP" as UC02
+  usecase "UC03: Permitir peticion\n(bajo el limite)" as UC03
+  usecase "UC04: Rechazar peticion\ncon HTTP 503" as UC04
+  usecase "UC05: Consultar perfil\nGET /profile" as UC05
+  usecase "UC06: Listar usuarios\nGET /users" as UC06
+  usecase "UC07: Crear usuario\nPOST /users" as UC07
+  usecase "UC08: Autenticar usuario\nPOST /login" as UC08
+  usecase "UC09: Configurar limite\n1200 rpm (Moderate)" as UC09
+  usecase "UC10: Configurar limite\n300 rpm (Strict)" as UC10
+  usecase "UC11: Deshabilitar limite\n(Baseline)" as UC11
+  usecase "UC12: Ejecutar prueba\nde carga mixta" as UC12
+  usecase "UC13: Medir tasa de\nrechazos HTTP 503" as UC13
+  usecase "UC14: Medir latencia\nbase sin limite" as UC14
+  usecase "UC15: Incrementar contador\nen zona Nginx" as UC15
+
+  UC01 .> UC02 : <<include>>
+  UC02 .> UC03 : <<extend>>\n(bajo limite)
+  UC02 .> UC04 : <<extend>>\n(supera limite)
+  UC03 .> UC15 : <<include>>
+  UC05 .> UC01 : <<include>>
+  UC06 .> UC01 : <<include>>
+  UC07 .> UC01 : <<include>>
+  UC08 .> UC01 : <<include>>
+  UC12 .> UC13 : <<include>>
+  UC12 .> UC14 : <<include>>
+  UC09 .> UC04 : <<extend>>
+  UC10 .> UC04 : <<extend>>
+  UC11 .> UC03 : <<extend>>
+}
+
+client --> UC05
+client --> UC06
+client --> UC07
+client --> UC08
+
+heavy_client --> UC05
+heavy_client --> UC04
+
+admin --> UC09
+admin --> UC10
+admin --> UC11
+
+nginx --> UC02
+nginx --> UC03
+nginx --> UC04
+nginx --> UC15
+
+k6 --> UC12
+@enduml

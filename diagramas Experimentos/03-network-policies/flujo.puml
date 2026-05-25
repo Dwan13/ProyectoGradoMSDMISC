@@ -1,0 +1,105 @@
+@startuml flujo-network-policies
+!theme plain
+title Experimento 03 - Diagrama de Flujo: Evaluacion de Network Policies
+
+skinparam activity {
+  BackgroundColor #FEF9E7
+  BorderColor #F39C12
+  DiamondBackgroundColor #FDEBD0
+  DiamondBorderColor #E67E22
+}
+skinparam backgroundColor #FAFAFA
+
+start
+
+:Pod origen intenta conectar\na Pod destino en el cluster;
+
+if (Configuracion activa?) then (Baseline)
+
+  :CNI plugin (sin politicas activas);
+  :Permitir toda conexion\nentrant y saliente;
+  :Trafico fluye libremente\nsin restricciones;
+  :Conexion establecida;
+
+else if (Basic NetworkPolicies) then (Basic)
+
+  :CNI evalua politicas del namespace;
+
+  if (Origen es del MISMO namespace?) then (Si)
+    if (Politica allow-intra-namespace activa?) then (Si)
+      :Permitir trafico\n(movimiento lateral interno OK);
+      :Conexion establecida;
+    else (No)
+      :Verificar otras politicas;
+    endif
+  else (No - origen diferente namespace)
+    if (Origen es ingress-controller\n(nginx/ingress namespace)?) then (Si)
+      if (Destino es api o auth\ny puerto es 8080?) then (Si)
+        :Politica allow-from-ingress-controller;
+        :PERMITIR;
+        :Conexion establecida;
+      else (No)
+        :BLOQUEAR\n(default-deny-all);
+        stop
+      endif
+    else (No)
+      :BLOQUEAR\n(default-deny-all);
+      stop
+    endif
+  endif
+
+else (Strict NetworkPolicies)
+
+  :CNI evalua politicas micro-segmentadas;
+
+  if (Trafico es EGRESS de DNS\n(puerto 53)?) then (Si)
+    :Politica allow-egress-dns;
+    :PERMITIR para todos los pods;
+  else (No)
+    if (Servicio DESTINO?) then (auth-service:8080)
+      if (Origen es ingress-ctrl O api-service?) then (Si)
+        :Politica auth-ingress: PERMITIR;
+        :Conexion establecida;
+      else (No)
+        :BLOQUEAR;
+        stop
+      endif
+    else if (Servicio DESTINO?) then (api-service)
+      if (Origen es ingress-ctrl?) then (Si)
+        :Politica api-ingress: PERMITIR;
+        :Conexion establecida;
+      else (No)
+        :BLOQUEAR;
+        stop
+      endif
+    else if (Servicio DESTINO?) then (data-service:8080)
+      if (Origen es api-service?) then (Si)
+        :Politica data-ingress: PERMITIR;
+        :Conexion establecida;
+      else (No)
+        :BLOQUEAR;
+        stop
+      endif
+    else if (Servicio DESTINO?) then (postgres:5432)
+      if (Origen es auth-service O data-service?) then (Si)
+        :Politica postgres-ingress: PERMITIR;
+        :Conexion establecida;
+      else (No)
+        :BLOQUEAR;
+        stop
+      endif
+    else (otro destino)
+      :default-deny-all;
+      :BLOQUEAR;
+      stop
+    endif
+  endif
+
+endif
+
+:Trafico llega al destino;
+:Procesar peticion;
+:Retornar respuesta;
+
+stop
+@enduml

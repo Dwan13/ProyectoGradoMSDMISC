@@ -1,0 +1,66 @@
+@startuml casos-de-uso-network-policies
+!theme plain
+title Experimento 03 - Casos de Uso: Network Policies
+
+left to right direction
+skinparam actorBackgroundColor #FEF9E7
+skinparam usecaseBackgroundColor #FDEBD0
+skinparam usecaseBorderColor #F39C12
+skinparam backgroundColor #FAFAFA
+
+actor "Cliente HTTP\nLegitimo" as client
+actor "Atacante\n(movimiento lateral)" as attacker
+actor "Administrador\nde Red" as net_admin
+actor "CNI Plugin\n(Calico/Cilium)" as cni <<sistema>>
+actor "Herramienta\nde Prueba (k6)" as k6
+
+rectangle "Experimento 03 - Network Policies" {
+
+  usecase "UC01: Enviar peticion\nal Ingress" as UC01
+  usecase "UC02: Enrutar trafico\nsegun NetworkPolicy" as UC02
+  usecase "UC03: Permitir trafico\nlegitimo (whitelist)" as UC03
+  usecase "UC04: Bloquear trafico\nno autorizado" as UC04
+  usecase "UC05: Intentar acceso\ncross-namespace" as UC05
+  usecase "UC06: Intentar movimiento\nlateral interno" as UC06
+  usecase "UC07: Resolver DNS\n(kube-system:53)" as UC07
+  usecase "UC08: Aplicar politica\ndefault-deny-all" as UC08
+  usecase "UC09: Aplicar politica\nallow-intra-namespace" as UC09
+  usecase "UC10: Aplicar politica\nmicro-segmentacion" as UC10
+  usecase "UC11: Definir\nNetworkPolicy YAML" as UC11
+  usecase "UC12: Verificar\nenforcement CNI" as UC12
+  usecase "UC13: Ejecutar\nprueba de carga" as UC13
+  usecase "UC14: Verificar trafico\nlegitimo no bloqueado" as UC14
+  usecase "UC15: Bloquear acceso\ndirecto a PostgreSQL" as UC15
+
+  UC02 .> UC08 : <<include>>
+  UC03 .> UC02 : <<include>>
+  UC04 .> UC02 : <<include>>
+  UC05 .> UC04 : <<extend>>
+  UC06 .> UC03 : <<extend>>\n(Basic permite\nlaternal interno)
+  UC06 .> UC04 : <<extend>>\n(Strict bloquea)
+  UC07 .> UC03 : <<include>>
+  UC10 .> UC09 : <<extend>>
+  UC13 .> UC14 : <<include>>
+  UC15 .> UC10 : <<include>>
+}
+
+client --> UC01
+UC01 .> UC03 : <<include>>
+
+attacker --> UC05
+attacker --> UC06
+attacker --> UC15
+
+net_admin --> UC11
+net_admin --> UC12
+net_admin --> UC09
+net_admin --> UC10
+
+cni --> UC02
+cni --> UC03
+cni --> UC04
+cni --> UC07
+
+k6 --> UC13
+
+@enduml

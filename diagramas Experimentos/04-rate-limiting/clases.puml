@@ -1,0 +1,187 @@
+@startuml clases-rate-limiting
+!theme plain
+title Experimento 04 - Diagrama de Clases: Recursos Kubernetes Rate Limiting
+
+skinparam classBackgroundColor #FDEDEC
+skinparam classBorderColor #E74C3C
+skinparam backgroundColor #FAFAFA
+
+package "Recursos Rate Limiting - Experimento 04" {
+
+  abstract class KubernetesResource {
+    +apiVersion: String
+    +kind: String
+    +metadata: ObjectMeta
+    +spec: Object
+  }
+
+  class Ingress {
+    +name: String
+    +namespace: String
+    +ingressClassName: String
+    +annotations: Map<String,String>
+    +tls: List<IngressTLS>
+    +rules: List<IngressRule>
+    --
+    +getRateLimitRPM(): int
+    +getBurstMultiplier(): int
+    +isTLSEnabled(): boolean
+  }
+
+  class NginxRateLimitConfig {
+    +limitRPM: int
+    +limitBurstMultiplier: int
+    +limitConnections: int
+    +limitKey: String = "$binary_remote_addr"
+    +rejectStatusCode: int = 503
+    --
+    +getReqPerSecond(): float
+    +isBurstAllowed(): boolean
+    +calculateZoneSize(): String
+  }
+
+  class BaselineIngress {
+    +name: String = "baseline-ingress"
+    +limitRPM: int = 0 (disabled)
+    +limitConnections: int = 0 (disabled)
+    +rateLimitEnabled: boolean = false
+    --
+    +allowAll(): boolean = true
+    +getMaxRPS(): float = unlimited
+  }
+
+  class ModerateRateLimitIngress {
+    +name: String = "moderate-ingress"
+    +limitRPM: int = 1200
+    +limitBurstMultiplier: int = 1
+    +annotations: nginx.ingress.kubernetes.io/limit-rpm
+    --
+    +getMaxRPS(): float = 20.0
+    +getHTTP503Rate(): String = "> 1200 rpm"
+    +getSuitableFor(): String = "trafico normal con picos"
+  }
+
+  class StrictRateLimitIngress {
+    +name: String = "strict-ingress"
+    +limitRPM: int = 300
+    +limitBurstMultiplier: int = 1
+    +annotations: nginx.ingress.kubernetes.io/limit-rpm
+    --
+    +getMaxRPS(): float = 5.0
+    +getHTTP503Rate(): String = "> 300 rpm"
+    +getSuitableFor(): String = "proteccion DDoS / recursos criticos"
+  }
+
+  class IngressRule {
+    +host: String
+    +paths: List<HTTPIngressPath>
+    --
+    +pathType: Prefix | Exact
+    +serviceName: String
+    +servicePort: int
+  }
+
+  class IngressTLS {
+    +hosts: List<String>
+    +secretName: String = "realistic-tls"
+  }
+
+  class APIServiceDeployment {
+    +name: String = "api-service"
+    +replicas: int = 1
+    +image: String = "localhost:32000/mubench/api-service"
+    +env_RATE_LIMIT_ENABLED: boolean
+    +env_JWT_SECRET: String
+    +env_DATA_SERVICE_URL: String
+    --
+    +port: int = 8080
+    +healthEndpoint: String = "/health"
+    +initialDelaySeconds: int = 8
+    +periodSeconds: int = 10
+  }
+
+  class AuthServiceDeployment {
+    +name: String = "auth-service"
+    +replicas: int = 1
+    +image: String = "localhost:32000/mubench/auth-service"
+    +env_JWT_SECRET: String
+    +env_DB_HOST: String
+    --
+    +port: int = 8080
+    +healthEndpoint: String = "/health"
+  }
+
+  class DataServiceDeployment {
+    +name: String = "data-service"
+    +replicas: int = 1
+    +image: String = "localhost:32000/mubench/data-service"
+    +env_DB_HOST: String
+    +env_DB_PORT: int = 5432
+    --
+    +port: int = 8080
+    +healthEndpoint: String = "/health"
+  }
+
+  class NginxZone {
+    +zoneName: String
+    +zoneSize: String = "10m"
+    +rate: String = "N r/m"
+    +burstQueue: int
+    --
+    +trackClientIP(): void
+    +incrementCounter(ip: String): void
+    +isLimitExceeded(ip: String): boolean
+    +returnHTTP503(): void
+  }
+
+  class K6TestConfig {
+    +targetURL: String
+    +authURL: String
+    +vus: int = 10
+    +duration: String = "60s"
+    +scenarios: Map<String, K6Scenario>
+    --
+    +getWorkloadDistribution(): String
+    +getExpectedHTTP503Rate(): String
+  }
+
+  class K6Scenario {
+    +name: String
+    +weight: float
+    +endpoint: String
+    +method: GET | POST
+    --
+    +profileWeight: float = 0.5
+    +usersWeight: float = 0.3
+    +createUserWeight: float = 0.2
+  }
+}
+
+KubernetesResource <|-- Ingress
+KubernetesResource <|-- APIServiceDeployment
+KubernetesResource <|-- AuthServiceDeployment
+KubernetesResource <|-- DataServiceDeployment
+
+Ingress <|-- BaselineIngress
+Ingress <|-- ModerateRateLimitIngress
+Ingress <|-- StrictRateLimitIngress
+
+Ingress "1" *-- "1" NginxRateLimitConfig
+Ingress "1" *-- "1..*" IngressRule
+Ingress "1" *-- "0..1" IngressTLS
+
+ModerateRateLimitIngress "1" --> "1" NginxZone : configura zona
+StrictRateLimitIngress "1" --> "1" NginxZone : configura zona
+
+NginxZone --> APIServiceDeployment : enruta (si bajo limite)
+NginxZone --> AuthServiceDeployment : enruta (si bajo limite)
+
+APIServiceDeployment --> AuthServiceDeployment : valida JWT
+APIServiceDeployment --> DataServiceDeployment : obtiene datos
+
+K6TestConfig "1" *-- "3" K6Scenario
+K6TestConfig --> BaselineIngress : prueba contra
+K6TestConfig --> ModerateRateLimitIngress : prueba contra
+K6TestConfig --> StrictRateLimitIngress : prueba contra
+
+@enduml

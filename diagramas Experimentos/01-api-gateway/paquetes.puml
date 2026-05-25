@@ -1,0 +1,99 @@
+@startuml paquetes-api-gateway
+!theme plain
+title Experimento 01 - Diagrama de Paquetes: Namespaces API Gateway
+
+skinparam packageBackgroundColor #E8F4FD
+skinparam packageBorderColor #2980B9
+skinparam backgroundColor #FAFAFA
+skinparam componentStyle rectangle
+
+package "Cluster Kubernetes" {
+
+  package "realistic-nginx\n[Namespace Baseline]" #EAFAF1 {
+    component "Nginx Ingress\nController" as nginx_ctrl
+    component "api-service\n(Deployment + Service)" as api_n
+    component "auth-service\n(Deployment + Service)" as auth_n
+    component "data-service\n(Deployment + Service)" as data_n
+    component "PostgreSQL\n(Deployment + Service)" as pg_n
+    component "postgres-secret\n(Secret)" as sec_n
+    component "postgres-init-sql\n(ConfigMap)" as cm_n
+    component "realistic-tls\n(Secret TLS)" as tls_n
+  }
+
+  package "realistic-istio\n[Namespace Istio]" #EAF4FB {
+    component "Istio Ingress Gateway" as istio_gw
+    component "api-virtualservice\n(VirtualService)" as vs_api
+    component "api-service\n(Deployment + Sidecar + Service)" as api_i
+    component "auth-service\n(Deployment + Sidecar + Service)" as auth_i
+    component "data-service\n(Deployment + Sidecar + Service)" as data_i
+    component "PostgreSQL\n(Deployment + Service)" as pg_i
+    component "postgres-secret\n(Secret)" as sec_i
+    component "postgres-init-sql\n(ConfigMap)" as cm_i
+    component "realistic-tls\n(Secret TLS)" as tls_i
+    note bottom of api_i : istio-injection: enabled\nSidecar auto-injectado
+  }
+
+  package "realistic-kong\n[Namespace Kong]" #FDF2F8 {
+    component "Kong Ingress\nController" as kong_ctrl
+    component "api-service\n(Deployment + Service)" as api_k
+    component "auth-service\n(Deployment + Service)" as auth_k
+    component "data-service\n(Deployment + Service)" as data_k
+    component "PostgreSQL\n(Deployment + Service)" as pg_k
+    component "postgres-secret\n(Secret)" as sec_k
+    component "postgres-init-sql\n(ConfigMap)" as cm_k
+    component "realistic-tls\n(Secret TLS)" as tls_k
+  }
+
+  package "ingress-nginx\n[Namespace Sistema]" #FDFEFE {
+    component "Nginx Controller\nPod" as nginx_pod
+  }
+
+  package "istio-system\n[Namespace Sistema]" #FDFEFE {
+    component "Istiod\n(Control Plane)" as istiod
+    component "Istio Ingressgateway\nPod" as istio_pod
+  }
+
+  package "kong-system\n[Namespace Sistema]" #FDFEFE {
+    component "Kong Controller\nPod" as kong_pod
+  }
+}
+
+nginx_ctrl --> api_n
+nginx_ctrl --> auth_n
+api_n --> data_n
+api_n --> auth_n
+data_n --> pg_n
+auth_n --> pg_n
+pg_n --> cm_n
+pg_n --> sec_n
+tls_n ..> nginx_ctrl : TLS cert
+
+istio_gw --> vs_api
+vs_api --> api_i
+vs_api --> auth_i
+api_i --> data_i
+api_i --> auth_i
+data_i --> pg_i
+auth_i --> pg_i
+pg_i --> cm_i
+pg_i --> sec_i
+tls_i ..> istio_gw : TLS cert
+istiod ..> api_i : inyecta sidecar
+istiod ..> auth_i : inyecta sidecar
+istiod ..> data_i : inyecta sidecar
+
+kong_ctrl --> api_k
+kong_ctrl --> auth_k
+api_k --> data_k
+api_k --> auth_k
+data_k --> pg_k
+auth_k --> pg_k
+pg_k --> cm_k
+pg_k --> sec_k
+tls_k ..> kong_ctrl : TLS cert
+
+nginx_pod ..> nginx_ctrl : implementa
+istio_pod ..> istio_gw : implementa
+kong_pod ..> kong_ctrl : implementa
+
+@enduml

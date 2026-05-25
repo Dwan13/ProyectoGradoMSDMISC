@@ -169,3 +169,6 @@ istioctl
 istio-*-linux-amd64.tar.gz
 istio-*-crds.yaml
 istio-crds.yaml
+
+# Local state for namespace scale-down restore
+scripts/.restore/

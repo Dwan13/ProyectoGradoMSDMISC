@@ -1,0 +1,81 @@
+@startuml secuencia-rate-limiting
+!theme plain
+title Experimento 04 - Diagrama de Secuencia: Rate Limiting por Configuracion
+
+skinparam sequenceArrowThickness 2
+skinparam backgroundColor #FAFAFA
+skinparam participantBackgroundColor #FDEDEC
+skinparam participantBorderColor #E74C3C
+
+actor "Cliente\n(normal)" as C
+actor "Cliente\n(alta carga)" as CH
+participant "Nginx Ingress\nController" as NGINX
+participant "limit_req_zone\n(Counter por IP)" as ZONE
+participant "api-service\n:8080" as API
+participant "auth-service\n:8080" as AUTH
+database "PostgreSQL\n:5432" as PG
+
+== Flujo Baseline (Sin Rate Limiting) ==
+
+note over C, PG : **Baseline**: Sin anotaciones de limite, RATE_LIMIT_ENABLED=false
+C -> NGINX : HTTPS GET /profile
+NGINX -> API : HTTP (sin evaluar zona)
+API -> AUTH : POST /validate
+AUTH -> PG : SELECT usuario
+PG --> AUTH : user record
+AUTH --> API : JWT valido
+API --> NGINX : HTTP 200
+NGINX --> C : HTTPS 200
+
+CH -> NGINX : 5000 req/min (alta carga)
+NGINX -> API : todos los requests procesados
+note over CH, API : Sin limite -> posible saturacion\ndel backend bajo alta carga
+
+== Flujo Moderate (1200 rpm) ==
+
+C -> NGINX : HTTPS GET /profile\n(Peticion #1 del cliente)
+NGINX -> ZONE : Consultar contador para\nIP del cliente
+ZONE -> ZONE : Contador actual: 800 rpm\n< 1200 rpm (bajo limite)
+ZONE --> NGINX : PERMITIR
+NGINX -> API : HTTP GET /profile
+API -> AUTH : validar JWT
+AUTH --> API : token OK
+API --> NGINX : HTTP 200
+NGINX --> C : HTTPS 200
+
+CH -> NGINX : HTTPS GET /profile\n(Peticion #1500 del cliente)
+NGINX -> ZONE : Consultar contador\nIP del cliente
+ZONE -> ZONE : Contador actual: 1500 rpm\n> 1200 rpm (EXCEDE LIMITE)
+ZONE --> NGINX : RECHAZAR
+NGINX --> CH : HTTP 503 Service Unavailable
+note over CH, ZONE : burst-multiplier=1: sin cola\nRechaze inmediato al exceder limite
+
+== Flujo Strict (300 rpm) ==
+
+C -> NGINX : HTTPS GET /profile\n(Peticion #50 del cliente)
+NGINX -> ZONE : Consultar contador\nIP del cliente
+ZONE -> ZONE : Contador actual: 250 rpm\n< 300 rpm (bajo limite)
+ZONE --> NGINX : PERMITIR
+NGINX -> API : HTTP GET /profile
+API --> NGINX : HTTP 200
+NGINX --> C : HTTPS 200
+
+CH -> NGINX : HTTPS GET /profile\n(Peticion #400 del cliente)
+NGINX -> ZONE : Consultar contador\nIP del cliente
+ZONE -> ZONE : Contador actual: 400 rpm\n> 300 rpm (EXCEDE LIMITE)
+ZONE --> NGINX : RECHAZAR
+NGINX --> CH : HTTP 503 Service Unavailable
+note over CH, ZONE : Strict: kicks in mucho antes\nque Moderate (300 vs 1200 rpm)\nMayor tasa de rechazo bajo carga normal
+
+== Resumen Comparativo ==
+
+note over C, PG
+  **Baseline**: 0 HTTP 503, latencia minima, throughput maximo
+  **Moderate (1200 rpm)**: HTTP 503 solo bajo alta carga (>20 rps)
+  **Strict (300 rpm)**: HTTP 503 frecuente incluso bajo carga moderada (>5 rps)
+
+  Variable medida: tasa de HTTP 503, latencia p50/p95/p99, throughput
+  Herramienta: k6 con 50% GET /profile, 30% GET /users, 20% POST /users
+end note
+
+@enduml

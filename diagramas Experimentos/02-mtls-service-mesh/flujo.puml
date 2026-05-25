@@ -1,0 +1,69 @@
+@startuml flujo-mtls
+!theme plain
+title Experimento 02 - Diagrama de Flujo: Handshake mTLS y Comunicacion entre Servicios
+
+skinparam activity {
+  BackgroundColor #EAF4FB
+  BorderColor #2980B9
+  DiamondBackgroundColor #FEF9E7
+  DiamondBorderColor #F39C12
+}
+skinparam backgroundColor #FAFAFA
+
+start
+
+:Servicio A intenta conectar\na Servicio B;
+
+if (Configuracion activa?) then (Baseline - Sin mTLS)
+  :Establecer conexion TCP\nHTTP plano;
+  :Enviar peticion sin cifrado\nni autenticacion mutua;
+  :Servicio B acepta cualquier\nconexion entrante;
+  :Respuesta enviada en texto plano;
+  stop
+
+else if (Istio mTLS STRICT) then (Istio)
+
+  :Envoy Sidecar A intercepta\nla conexion saliente;
+  :Verificar PeerAuthentication\npolicy en namespace;
+
+  if (PeerAuthentication mode?) then (STRICT)
+    :Iniciar handshake mTLS;
+    :Sidecar A presenta\ncertificado SPIFFE;
+    :Sidecar B recibe y\nvalida certificado de A;
+    :Sidecar B presenta\nsu propio certificado;
+    :Sidecar A valida\ncertificado de B;
+
+    if (Certificados validos?) then (Si - Ambos autenticados)
+      :Canal mTLS establecido;
+      :Trafico cifrado entre\nSidecar A <-> Sidecar B;
+      :Servicios se comunican\npor localhost (sin TLS adicional);
+      :Respuesta cifrada\nde vuelta;
+    else (No - Falla validacion)
+      :Conexion RECHAZADA;
+      :HTTP 503 / Connection Reset;
+      stop
+    endif
+
+  else (PERMISSIVE - fallback HTTP)
+    :Conexion HTTP plano permitida;
+    note right : Solo en modo PERMISSIVE,\nen STRICT siempre mTLS
+  endif
+
+else (Linkerd mTLS Automatico)
+
+  :Linkerd proxy intercepta\nconexion saliente;
+  :mTLS iniciado AUTOMATICAMENTE;
+  :Certificados rotados\nautomaticamente por Linkerd;
+  :Proxy destino valida\ncertificado;
+  :Canal mTLS establecido\n(sin configuracion manual);
+  :Trafico cifrado entre proxies\nLinkerd;
+  :Overhead menor que Istio;
+
+endif
+
+:Servicio B recibe peticion;
+:Procesar y generar respuesta;
+:Retornar por el mismo canal seguro;
+
+stop
+@enduml

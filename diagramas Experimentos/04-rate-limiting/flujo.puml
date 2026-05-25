@@ -1,0 +1,86 @@
+@startuml flujo-rate-limiting
+!theme plain
+title Experimento 04 - Diagrama de Flujo: Evaluacion de Rate Limiting en Nginx
+
+skinparam activity {
+  BackgroundColor #FDEDEC
+  BorderColor #E74C3C
+  DiamondBackgroundColor #FDEBD0
+  DiamondBorderColor #E67E22
+}
+skinparam backgroundColor #FAFAFA
+
+start
+
+:Cliente envia peticion HTTPS;
+:Nginx Ingress recibe la peticion;
+
+if (Rate limiting configurado?) then (No - Baseline)
+
+  :No evaluar zona de limite;
+  :Reenviar peticion directamente\nal servicio backend;
+  :Procesar peticion;
+  :Retornar HTTP 200;
+  stop
+
+else (Si - Moderate o Strict)
+
+  :Identificar IP del cliente\n(X-Forwarded-For o RemoteAddr);
+  :Buscar contador en la zona\nlimit_req_zone de Nginx;
+
+  if (Configuracion?) then (Moderate - 1200 rpm)
+
+    :Limite: 1200 req/min = 20 req/seg;
+    :Evaluar tasa actual del cliente;
+
+    if (Peticiones cliente < 1200 rpm?) then (Si - bajo limite)
+      :Incrementar contador en zona;
+      :PERMITIR peticion;
+      :Reenviar a backend (api/auth);
+      :Retornar HTTP 200;
+    else (No - supera limite)
+      :burst-multiplier = 1 (sin gracia);
+      :RECHAZAR peticion inmediatamente;
+      :Retornar HTTP 503\nService Unavailable;
+      note right : Nginx no hace delay,\nrechaza directamente
+    endif
+
+  else (Strict - 300 rpm)
+
+    :Limite: 300 req/min = 5 req/seg;
+    :Evaluar tasa actual del cliente;
+
+    if (Peticiones cliente < 300 rpm?) then (Si - bajo limite)
+      :Incrementar contador en zona;
+      :PERMITIR peticion;
+      :Reenviar a backend (api/auth);
+      :Retornar HTTP 200;
+    else (No - supera limite)
+      :burst-multiplier = 1 (sin gracia);
+      :RECHAZAR peticion inmediatamente;
+      :Retornar HTTP 503\nService Unavailable;
+      note right : Nivel agresivo:\nKick in mucho antes\nque el nivel Moderate
+    endif
+
+  endif
+
+endif
+
+:Backend procesa peticion (si fue permitida);
+
+if (Peticion requiere autenticacion?) then (Si)
+  :api-service valida JWT\ncon auth-service;
+  if (JWT valido?) then (Si)
+    :Retornar datos solicitados;
+  else (No)
+    :HTTP 401 Unauthorized;
+    stop
+  endif
+else (No)
+  :Procesar directamente;
+endif
+
+:Retornar respuesta al cliente;
+
+stop
+@enduml

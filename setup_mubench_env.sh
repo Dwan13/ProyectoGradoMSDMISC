@@ -45,14 +45,6 @@ else
     echo "[INFO] Monitoring stack already present."
 fi
 
-# 6. Deploy muBench Realistic Services
-cd RealisticServices
-bash deploy-realistic.sh
-cd ..
-
-# 7. Validate environment
-python3 scripts/validate_environment.sh || echo "[WARN] Validation script failed, please check logs."
-
 echo "[SUCCESS] muBench environment setup complete."
 echo "[INFO] Next steps:"
 echo "- Run your benchmark campaigns as described in the README."

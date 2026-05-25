@@ -1,0 +1,100 @@
+@startuml paquetes-mtls
+!theme plain
+title Experimento 02 - Diagrama de Paquetes: Namespaces mTLS Service Mesh
+
+skinparam packageBackgroundColor #EAF4FB
+skinparam packageBorderColor #2980B9
+skinparam backgroundColor #FAFAFA
+skinparam componentStyle rectangle
+
+package "Cluster Kubernetes - Experimento mTLS" {
+
+  package "realistic-without-mtls\n[Baseline - Sin mTLS]" #EAFAF1 {
+    component "api-service\n(NodePort: 30081)" as api_b
+    component "auth-service\n(NodePort: 30084)" as auth_b
+    component "data-service\n(ClusterIP)" as data_b
+    component "PostgreSQL" as pg_b
+    component "postgres-secret" as sec_b
+    component "Nginx Ingress" as nginx_b
+    note bottom : istio-injection: disabled\nlinkerd.io/inject: disabled\nHTTP plano entre servicios
+  }
+
+  package "realistic-istio-mtls\n[Istio mTLS STRICT]" #D6EAF8 {
+    component "Istio IngressGateway" as igw_i
+    component "VirtualService" as vs_i
+    component "PeerAuthentication\n[mode: STRICT]" as pa_i
+    component "DestinationRule\n[ISTIO_MUTUAL]" as dr_i
+    package "Pods con Envoy Sidecar" #EBF5FB {
+      component "api-service + Envoy" as api_i
+      component "auth-service + Envoy" as auth_i
+      component "data-service + Envoy" as data_i
+    }
+    component "PostgreSQL" as pg_i
+    component "postgres-secret" as sec_i
+    note bottom : Requiere certificados SPIFFE\nHTTP plano RECHAZADO\nTodo trafico inter-pod cifrado
+  }
+
+  package "realistic-linkerd-mtls\n[Linkerd mTLS Automatico]" #F9EBEA {
+    component "Nginx Ingress" as nginx_l
+    package "Pods con Linkerd Proxy" #FDEDEC {
+      component "api-service + Proxy" as api_l
+      component "auth-service + Proxy" as auth_l
+      component "data-service + Proxy" as data_l
+    }
+    component "PostgreSQL" as pg_l
+    component "postgres-secret" as sec_l
+    note bottom : linkerd.io/inject: enabled\nmTLS automatico sin configuracion\nProxy mas liviano que Envoy
+  }
+
+  package "istio-system\n[Control Plane Istio]" #EBF5FB {
+    component "istiod\n(Certificados + Politicas)" as istiod
+    component "istio-ingressgateway" as istio_gw_pod
+  }
+
+  package "linkerd\n[Control Plane Linkerd]" #FDEDEC {
+    component "linkerd-control-plane\n(Certificados + Proxies)" as linkerd_cp
+    component "linkerd-proxy-injector" as lpi
+  }
+
+  package "ingress-nginx\n[Controlador Nginx]" #F0F3F4 {
+    component "nginx-controller" as nginx_ctrl
+  }
+}
+
+nginx_b --> api_b : HTTP plano
+api_b --> auth_b : HTTP plano
+api_b --> data_b : HTTP plano
+data_b --> pg_b
+auth_b --> pg_b
+
+igw_i --> vs_i
+vs_i --> api_i : mTLS
+api_i --> auth_i : mTLS
+api_i --> data_i : mTLS
+data_i --> pg_i
+auth_i --> pg_i
+pa_i ..> api_i : enforces
+pa_i ..> auth_i : enforces
+pa_i ..> data_i : enforces
+dr_i ..> api_i : configura
+
+nginx_l --> api_l : HTTPS
+api_l --> auth_l : mTLS auto
+api_l --> data_l : mTLS auto
+data_l --> pg_l
+auth_l --> pg_l
+
+istiod ..> api_i : inyecta sidecar
+istiod ..> auth_i : inyecta sidecar
+istiod ..> data_i : inyecta sidecar
+istiod ..> pa_i : distribuye politica
+
+lpi ..> api_l : inyecta proxy
+lpi ..> auth_l : inyecta proxy
+lpi ..> data_l : inyecta proxy
+
+istio_gw_pod ..> igw_i : implementa
+nginx_ctrl ..> nginx_b : gestiona
+nginx_ctrl ..> nginx_l : gestiona
+
+@enduml

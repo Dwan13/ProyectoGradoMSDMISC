@@ -1,0 +1,86 @@
+@startuml arquitectura-network-policies
+!theme plain
+title Experimento 03 - Arquitectura Network Policies (Comparativa)
+
+skinparam componentStyle rectangle
+skinparam backgroundColor #FAFAFA
+
+actor "Cliente" as client
+actor "Atacante\n(movimiento lateral)" as attacker
+
+rectangle "Baseline - Sin NetworkPolicies" #EAFAF1 {
+  component "[Nginx Ingress]" as nginx_b
+  component "[api-service]" as api_b
+  component "[auth-service]" as auth_b
+  component "[data-service]" as data_b
+  database "[PostgreSQL]" as pg_b
+  note right of nginx_b : namespace: realistic-without-network-policies\nSin restricciones CNI\nCualquier pod puede hablar con cualquier otro\nTrafico lateral PERMITIDO
+}
+
+rectangle "Basic NetworkPolicies (4 politicas)" #FEF9E7 {
+  component "[Nginx Ingress]" as nginx_basic
+  component "[api-service]" as api_basic
+  component "[auth-service]" as auth_basic
+  component "[data-service]" as data_basic
+  database "[PostgreSQL]" as pg_basic
+
+  rectangle "NetworkPolicies Basicas" #FDEBD0 {
+    component "[default-deny-all]" as deny_basic
+    component "[allow-intra-namespace]" as intra_basic
+    component "[allow-from-ingress]" as ingress_basic
+    component "[allow-egress-dns]" as dns_basic
+  }
+  note right of deny_basic : namespace: realistic-basic-network-policies\nDeny-all + allow dentro namespace\nMovimiento lateral interno PERMITIDO\nCross-namespace BLOQUEADO
+}
+
+rectangle "Strict NetworkPolicies (8+ politicas)" #FDEDEC {
+  component "[Nginx Ingress]" as nginx_strict
+  component "[api-service]" as api_strict
+  component "[auth-service]" as auth_strict
+  component "[data-service]" as data_strict
+  database "[PostgreSQL]" as pg_strict
+
+  rectangle "NetworkPolicies Estrictas" #FADBD8 {
+    component "[default-deny-all]" as deny_strict
+    component "[auth-ingress: solo de ingress+api]" as auth_np
+    component "[auth-egress: solo a postgres]" as auth_egr
+    component "[api-ingress: solo de ingress]" as api_np
+    component "[api-egress: solo a auth+data]" as api_egr
+    component "[data-ingress: solo de api]" as data_np
+    component "[data-egress: solo a postgres]" as data_egr
+    component "[postgres-ingress: solo de auth+data]" as pg_np
+  }
+  note right of deny_strict : namespace: realistic-strict-network-policies\nMicro-segmentacion\nMovimiento lateral BLOQUEADO\nMinimo privilegio por servicio
+}
+
+client --> nginx_b : HTTPS
+client --> nginx_basic : HTTPS
+client --> nginx_strict : HTTPS
+
+nginx_b --> api_b : Cualquier trafico
+nginx_b --> auth_b
+api_b --> data_b : Permitido (sin politica)
+api_b --> auth_b : Permitido
+data_b --> pg_b : Permitido
+auth_b --> pg_b : Permitido
+attacker ..> auth_b : Movimiento lateral\nPERMITIDO (Baseline)
+attacker ..> pg_b : Acceso directo\nPERMITIDO (Baseline)
+
+nginx_basic --> api_basic : PERMITIDO (ingress policy)
+nginx_basic --> auth_basic : PERMITIDO (ingress policy)
+api_basic --> data_basic : PERMITIDO (intra-namespace)
+api_basic --> auth_basic : PERMITIDO (intra-namespace)
+data_basic --> pg_basic : PERMITIDO (intra-namespace)
+auth_basic --> pg_basic : PERMITIDO (intra-namespace)
+attacker ..> auth_basic #red : Cross-namespace BLOQUEADO
+
+nginx_strict --> api_strict : PERMITIDO (api-ingress)
+nginx_strict --> auth_strict : BLOQUEADO por api-ingress\n(auth solo acepta de ingress+api)
+api_strict --> auth_strict : PERMITIDO (api-egress + auth-ingress)
+api_strict --> data_strict : PERMITIDO (api-egress + data-ingress)
+auth_strict --> pg_strict : PERMITIDO (auth-egress + pg-ingress)
+data_strict --> pg_strict : PERMITIDO (data-egress + pg-ingress)
+attacker ..> data_strict #red : BLOQUEADO (data solo acepta de api)
+attacker ..> pg_strict #red : BLOQUEADO (pg solo acepta de auth+data)
+
+@enduml
