@@ -35,7 +35,7 @@ SCENARIO=""
 STOP_MICROK8S=true
 SCALE_DOWN=true
 ASSUME_YES=false
-TEST_PROCESS_PATTERN="run-k6-benchmark.sh|run-scaling-tests.sh|run-all-controls|live-control-and-request.sh|run-s2-final-repro.sh|run-randomized|k6 run|analyze-s2-academic-final.py"
+TEST_PROCESS_PATTERN="run-k6-benchmark.sh|run-scaling-tests.sh|run-all-controls|live-control-and-request.sh|run-s2-final-repro.sh|run-randomized|k6 run"
 
 usage() {
   cat << EOF
@@ -287,10 +287,6 @@ Próximos pasos:
   1. Ahora puedes apagar la máquina sin problema
   2. Manana al encender, ejecuta:
        bash scripts/factorial-graceful-startup.sh --yes
-     o el flujo unificado:
-       bash scripts/replicate-tomorrow.sh --mode bootstrap
-  3. Para lanzar campaña factorial directamente:
-       bash scripts/replicate-tomorrow.sh --mode full --yes
 
 ${YELLOW}Nota:${NC} Todos tus datos y configuración se preservaron.
 
