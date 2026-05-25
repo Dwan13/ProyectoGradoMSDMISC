@@ -110,11 +110,11 @@ ProyectoGradoMSDMISC/
 │
 ├── scripts/                            # Herramientas de orquestacion y analisis
 │   ├── run-crud-experiment.sh          # ORQUESTADOR PRINCIPAL
-│   ├── graceful-startup.sh
-│   ├── graceful-shutdown.sh
+│   ├── run-crud-full-grid.sh            # Loop factorial (VUS × controles × variantes)
+│   ├── anova_overhead.py                # Análisis Kruskal-Wallis + ε²
+│   ├── build_overhead_report.py         # Genera capítulo LaTeX + boxplots
 │   ├── keep-portforwards.sh
-│   ├── monitoring-up.sh / monitoring-down.sh
-│   └── validate_environment.sh
+│   └── monitoring-up.sh / monitoring-down.sh
 │
 ├── Testing/                            # Resultados y analisis estadistico
 │   ├── results/auto_runs/              # Salida del orquestador (generada)
