@@ -112,18 +112,15 @@ ProyectoGradoMSDMISC/
 │   ├── keep-portforwards.sh
 │   └── monitoring-up.sh / monitoring-down.sh
 │
-├── Testing/                            # Resultados y analisis estadistico
-│   ├── results/auto_runs/              # Salida del orquestador (generada)
-│   │   └── crud_vusN_nM_TIMESTAMP/
-│   │       ├── results.csv             # Consolidado final
-│   │       ├── resource_metrics.csv    # CPU/mem por replica
-│   │       ├── invalid-scenarios.csv   # Escenarios que fallaron smoke check
-│   │       ├── summaries/              # JSON k6 por replica
-│   │       ├── logs/                   # stdout k6 por replica
-│   │       └── state/                  # Dumps YAML del cluster
-│   ├── consolidate_all_metrics.py
-│   ├── s6_statistical_analysis.py
-│   └── extract_clean_metrics.py
+├── Testing/                            # Resultados experimentales
+│   └── results/auto_runs/              # Salida del orquestador (generada)
+│       └── crud_vusN_nM_TIMESTAMP/
+│           ├── results.csv             # Consolidado final
+│           ├── resource_metrics.csv    # CPU/mem por replica
+│           ├── invalid-scenarios.csv   # Escenarios que fallaron smoke check
+│           ├── summaries/              # JSON k6 por replica
+│           ├── logs/                   # stdout k6 por replica
+│           └── state/                  # Dumps YAML del cluster
 │
 └── diagramas Experimentos/             # Diagramas PlantUML del proyecto
     ├── 00-orquestador/                 # Arquitectura del orquestador y k6
