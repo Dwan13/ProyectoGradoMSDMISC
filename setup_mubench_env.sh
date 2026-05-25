@@ -45,11 +45,6 @@ else
     echo "[INFO] Monitoring stack already present."
 fi
 
-# 6. Deploy muBench Realistic Services
-cd RealisticServices
-bash deploy-realistic.sh
-cd ..
-
 echo "[SUCCESS] muBench environment setup complete."
 echo "[INFO] Next steps:"
 echo "- Run your benchmark campaigns as described in the README."

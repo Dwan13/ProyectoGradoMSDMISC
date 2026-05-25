@@ -101,12 +101,8 @@ ProyectoGradoMSDMISC/
 │   ├── auth-service/                   # FastAPI: login + validacion JWT
 │   ├── data-service/                   # FastAPI: CRUD /products sobre PostgreSQL
 │   ├── k6/
-│   │   ├── realistic-crud-flow.js      # Script k6: flujo CRUD completo (principal)
-│   │   └── realistic-flow.js           # Script k6: flujo mixto de lectura
-│   ├── k8s/                            # Manifiestos base reutilizables
-│   ├── controls/
-│   │   └── apply-control.sh
-│   └── deploy-realistic.sh
+│   │   └── realistic-crud-flow.js      # Script k6: flujo CRUD completo
+│   └── (manifiestos K8s por escenario en experiments/0X-*-realistic/)
 │
 ├── scripts/                            # Herramientas de orquestacion y analisis
 │   ├── run-crud-experiment.sh          # ORQUESTADOR PRINCIPAL
