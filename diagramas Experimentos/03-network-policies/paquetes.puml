@@ -1,0 +1,104 @@
+@startuml paquetes-network-policies
+!theme plain
+title Experimento 03 - Diagrama de Paquetes: Namespaces y NetworkPolicies
+
+skinparam packageBackgroundColor #FEF9E7
+skinparam packageBorderColor #F39C12
+skinparam backgroundColor #FAFAFA
+skinparam componentStyle rectangle
+
+package "Cluster Kubernetes - Experimento Network Policies" {
+
+  package "realistic-without-network-policies\n[Baseline - Sin politicas]" #EAFAF1 {
+    component "Nginx Ingress" as nginx_b
+    component "api-service" as api_b
+    component "auth-service" as auth_b
+    component "data-service" as data_b
+    component "PostgreSQL" as pg_b
+    note bottom : Sin NetworkPolicies\nTrafico libre entre todos los pods\nCualquier namespace puede conectar
+  }
+
+  package "realistic-basic-network-policies\n[Basic - 4 politicas]" #FEF9E7 {
+    package "NetworkPolicies Basicas" #FDEBD0 {
+      component "default-deny-all\n(deny todo por defecto)" as np1
+      component "allow-intra-namespace\n(permite todo interno)" as np2
+      component "allow-from-ingress-controller\n(ingress -> api,auth :8080)" as np3
+      component "allow-egress-dns\n(todos -> kube-system :53)" as np4
+    }
+    component "Nginx Ingress" as nginx_basic
+    component "api-service" as api_basic
+    component "auth-service" as auth_basic
+    component "data-service" as data_basic
+    component "PostgreSQL" as pg_basic
+    note bottom : Segmentacion de namespace\nMovimiento lateral interno PERMITIDO\n4 politicas simples de mantener
+  }
+
+  package "realistic-strict-network-policies\n[Strict - 9 politicas]" #FDEDEC {
+    package "NetworkPolicies Estrictas" #FADBD8 {
+      component "default-deny-all" as snp1
+      component "allow-egress-dns" as snp2
+      component "auth-ingress\n(de ingress-ctrl + api)" as snp3
+      component "auth-egress\n(a postgres:5432)" as snp4
+      component "api-ingress\n(solo de ingress-ctrl)" as snp5
+      component "api-egress\n(a auth:8080 + data:8080)" as snp6
+      component "data-ingress\n(solo de api-service)" as snp7
+      component "data-egress\n(a postgres:5432)" as snp8
+      component "postgres-ingress\n(de auth + data)" as snp9
+    }
+    component "Nginx Ingress" as nginx_strict
+    component "api-service" as api_strict
+    component "auth-service" as auth_strict
+    component "data-service" as data_strict
+    component "PostgreSQL" as pg_strict
+    note bottom : Micro-segmentacion\nMovimiento lateral BLOQUEADO\n9 politicas, mayor complejidad
+  }
+
+  package "ingress-nginx\n[Namespace Sistema]" #F0F3F4 {
+    component "nginx-controller" as nginx_ctrl
+  }
+
+  package "kube-system\n[DNS del Cluster]" #F0F3F4 {
+    component "CoreDNS\n(puerto 53)" as coredns
+  }
+}
+
+nginx_ctrl --> nginx_b
+nginx_ctrl --> nginx_basic
+nginx_ctrl --> nginx_strict
+
+nginx_b --> api_b : HTTP (libre)
+api_b --> auth_b : HTTP (libre)
+api_b --> data_b : HTTP (libre)
+auth_b --> pg_b : SQL (libre)
+data_b --> pg_b : SQL (libre)
+
+np3 ..> nginx_basic : permite acceso de
+np2 ..> api_basic : permite intra-namespace
+np1 ..> api_basic : deny-all base
+np4 ..> coredns : permite DNS
+
+nginx_basic --> api_basic : PERMITIDO (np3)
+nginx_basic --> auth_basic : PERMITIDO (np3)
+api_basic --> data_basic : PERMITIDO (np2)
+api_basic --> auth_basic : PERMITIDO (np2)
+auth_basic --> pg_basic : PERMITIDO (np2)
+data_basic --> pg_basic : PERMITIDO (np2)
+
+snp5 ..> api_strict : controla ingress
+snp6 ..> api_strict : controla egress
+snp3 ..> auth_strict : controla ingress
+snp4 ..> auth_strict : controla egress
+snp7 ..> data_strict : controla ingress
+snp8 ..> data_strict : controla egress
+snp9 ..> pg_strict : controla ingress
+
+nginx_strict --> api_strict : PERMITIDO (snp5)
+api_strict --> auth_strict : PERMITIDO (snp6+snp3)
+api_strict --> data_strict : PERMITIDO (snp6+snp7)
+auth_strict --> pg_strict : PERMITIDO (snp4+snp9)
+data_strict --> pg_strict : PERMITIDO (snp8+snp9)
+
+api_basic ..> coredns : DNS (np4)
+api_strict ..> coredns : DNS (snp2)
+
+@enduml

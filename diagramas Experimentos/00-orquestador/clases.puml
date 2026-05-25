@@ -1,0 +1,201 @@
+@startuml clases-orquestador
+!theme plain
+title Diagrama de Clases - Modelo de Datos del Experimento\n(Escenarios, Metricas, Resultados)
+
+skinparam classBackgroundColor #E8F4FD
+skinparam classBorderColor #2980B9
+skinparam backgroundColor #FAFAFA
+
+package "Modelo de Configuracion" {
+
+  class ExperimentRun {
+    +runDir: String
+    +stamp: String
+    +vus: int = 20
+    +replicas: int = 5
+    +duration: String = "60s"
+    +warmup: int = 0
+    +scenarioFilter: String
+    --
+    +totalRuns: int
+    +execute(): void
+    +consolidate(): void
+  }
+
+  class Scenario {
+    +control: String       // C1|C2|C3|C4
+    +variant: String       // baseline|kong|istio|etc
+    +namespace: String     // realistic-nginx|etc
+    +host: String          // realistic.local|etc
+    +port: int             // 32167|30443|32012
+    --
+    +authBase: String      // https://HOST:PORT/auth
+    +apiBase: String       // https://HOST:PORT/api
+    +resolve: String       // HOST:127.0.0.1
+    +manifestDir: String   // experiments/Cx/variant/
+    --
+    +apply(): void
+    +waitRollout(): boolean
+    +smokeCheck(): boolean
+    +warmup(secs: int): void
+    +dumpState(): void
+  }
+
+  class ScenarioResult {
+    +control: String
+    +variant: String
+    +vus: int
+    +replica: int
+    +summaryFile: String
+    +logFile: String
+    +isValid: boolean
+    +invalidReason: String
+  }
+
+  enum Control {
+    C1_API_GATEWAY
+    C2_MTLS
+    C3_NETWORK_POLICIES
+    C4_RATE_LIMITING
+  }
+
+  enum C1Variant {
+    baseline   // Nginx :32167
+    kong       // Kong :30443
+    istio      // Istio :32012
+  }
+
+  enum C2Variant {
+    baseline       // Sin mTLS :32167
+    istio_mtls     // Istio STRICT :32012
+    linkerd_mtls   // Linkerd auto :32167
+  }
+
+  enum C3Variant {
+    baseline  // Sin politicas :32167
+    basic     // 4 politicas :32167
+    strict    // 9 politicas :32167
+  }
+
+  enum C4Variant {
+    baseline  // Sin limite :32167
+    moderate  // 1200 rpm :32167
+    strict    // 300 rpm :32167
+  }
+}
+
+package "Metricas k6" {
+
+  class K6Summary {
+    +filePath: String
+    +control: String
+    +variant: String
+    +replica: int
+    --
+    +metrics: Map<String, MetricData>
+  }
+
+  class K6Metrics {
+    +avg_ms: float
+    +p95_ms: float
+    +err_pct: float
+    +rps: float
+    +checks_pct: float
+    --
+    +create_ok: int
+    +create_fail: int
+    +read_ok: int
+    +read_fail: int
+    +update_ok: int
+    +update_fail: int
+    +delete_ok: int
+    +delete_fail: int
+    +list_ok: int
+    --
+    +create_p95_ms: float
+    +read_p95_ms: float
+    +update_p95_ms: float
+    +delete_p95_ms: float
+  }
+
+  class K6Thresholds {
+    +http_req_failed_rate: float < 0.05
+    +http_req_duration_p95: float < 700
+    +checks_rate: float > 0.95
+    +crud_create_count: int > 0
+    +crud_read_count: int > 0
+    +crud_update_count: int > 0
+    +crud_delete_count: int > 0
+    --
+    +allPassed(): boolean
+  }
+
+  class ResourceMetrics {
+    +control: String
+    +variant: String
+    +vus: int
+    +replica: int
+    +cpu_total_m: int      // milicores (suma de 4 pods)
+    +mem_total_Mi: int     // MiB (suma de 4 pods)
+    --
+    +collectTiming: String  // DESPUES del run k6 (no durante)
+  }
+}
+
+package "Salidas del Experimento" {
+
+  class ResultRow {
+    +control: String
+    +variant: String
+    +vus: int
+    +replica: int
+    --
+    +avg_ms: float
+    +p95_ms: float
+    +err_pct: float
+    +rps: float
+    +checks_pct: float
+    +create_ok: int
+    +create_fail: int
+    +read_ok: int
+    +read_fail: int
+    +update_ok: int
+    +update_fail: int
+    +delete_ok: int
+    +delete_fail: int
+    +list_ok: int
+    +create_p95_ms: float
+    +read_p95_ms: float
+    +update_p95_ms: float
+    +delete_p95_ms: float
+    +cpu_total_m: int
+    +mem_total_Mi: int
+  }
+
+  class InvalidRecord {
+    +timestamp: String
+    +control: String
+    +variant: String
+    +vus: int
+    +replica: int
+    +reason: String  // smoke_failed
+  }
+}
+
+ExperimentRun "1" *-- "12" Scenario
+ExperimentRun "1" *-- "1..*" ScenarioResult
+Scenario --> Control : tiene
+Scenario "1" *-- "1..*" ScenarioResult
+
+ScenarioResult "1" --> "1" K6Summary : genera
+ScenarioResult "1" --> "1" ResourceMetrics : recolecta
+
+K6Summary "1" *-- "1" K6Metrics
+K6Summary "1" *-- "1" K6Thresholds
+
+K6Metrics --> ResultRow : extraida a
+ResourceMetrics --> ResultRow : merged a
+
+ScenarioResult --> InvalidRecord : si smoke_failed
+
+@enduml

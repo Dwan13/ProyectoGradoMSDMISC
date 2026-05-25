@@ -1,0 +1,128 @@
+@startuml arquitectura-orquestador
+!theme plain
+title Arquitectura General del Experimento - run-crud-experiment.sh
+
+skinparam componentStyle rectangle
+skinparam backgroundColor #FAFAFA
+skinparam component {
+  BackgroundColor #E8F4FD
+  BorderColor #2980B9
+}
+
+actor "Investigador" as researcher
+
+rectangle "Host / Maquina de Control" #EAFAF1 {
+
+  rectangle "run-crud-experiment.sh\n[Orquestador Principal]" #D6EAF8 {
+    component "Parser de argumentos\n--vus, --replicas, --duration\n--warmup, --scenario" as parser
+    component "apply_scenario()\nkubectl apply -f" as apply
+    component "wait_rollout()\ntimeout 180s por deployment" as wait
+    component "smoke_check()\nPOST /auth/login demo/demo123" as smoke
+    component "warmup_phase()\nTrafico de calentamiento" as warmup
+    component "dump_state()\nYAML snapshot del cluster" as dump
+    component "collect_resources()\nkubectl top pods" as collect
+    component "Python Consolidator\nJSON -> results.csv" as python
+  }
+
+  component "k6\nrealistic-crud-flow.js" as k6
+  component "curl\n(smoke + warmup)" as curl_tool
+
+  rectangle "Sistema de Archivos - Run Output" #F0F3F4 {
+    component "Testing/results/auto_runs/\ncrud_vusN_nM_TIMESTAMP/" as run_dir
+    component "summaries/*.json\n(k6 --summary-export)" as summaries
+    component "logs/*.log\n(stdout k6)" as logs
+    component "state/*.yaml\n(cluster dump)" as state
+    component "resource_metrics.csv\n(CPU/mem por replica)" as res_csv
+    component "results.csv\n(consolidado final)" as results
+    component "invalid-scenarios.csv\n(smoke failures)" as invalid
+  }
+}
+
+rectangle "Cluster Kubernetes (MicroK8s)" #FEF9E7 {
+
+  rectangle "Namespace C1 (API Gateway)" #EAF4FB {
+    component "realistic-nginx\nNginx :32167" as ns_c1_nginx
+    component "realistic-kong\nKong :30443" as ns_c1_kong
+    component "realistic-istio\nIstio :32012" as ns_c1_istio
+  }
+
+  rectangle "Namespace C2 (mTLS)" #EAF4FB {
+    component "realistic-without-mtls :32167" as ns_c2_base
+    component "realistic-istio-mtls :32012" as ns_c2_istio
+    component "realistic-linkerd-mtls :32167" as ns_c2_linkerd
+  }
+
+  rectangle "Namespace C3 (Network Policies)" #EAF4FB {
+    component "realistic-without-network-policies :32167" as ns_c3_base
+    component "realistic-basic-network-policies :32167" as ns_c3_basic
+    component "realistic-strict-network-policies :32167" as ns_c3_strict
+  }
+
+  rectangle "Namespace C4 (Rate Limiting)" #EAF4FB {
+    component "realistic-without-rate-limiting :32167" as ns_c4_base
+    component "realistic-moderate-rate-limiting :32167" as ns_c4_mod
+    component "realistic-strict-rate-limiting :32167" as ns_c4_strict
+  }
+
+  rectangle "Cada Namespace contiene:" #F8F9F9 {
+    component "api-service :8080" as api_svc
+    component "auth-service :8080" as auth_svc
+    component "data-service :8080" as data_svc
+    database "postgres :5432" as pg_svc
+  }
+}
+
+researcher --> parser : bash run-crud-experiment.sh\n--vus 20 --replicas 5 --duration 60s
+
+parser --> apply
+apply --> wait
+wait --> smoke
+smoke --> warmup
+warmup --> k6
+k6 --> collect
+collect --> python
+
+k6 --> summaries : --summary-export
+k6 --> logs : stdout
+apply --> state : dump_state()
+collect --> res_csv
+python --> results : consolida todos los JSON
+
+curl_tool --> smoke : POST /auth/login
+curl_tool --> warmup : GET /api/products
+
+k6 --> ns_c1_nginx : HTTPS (segun escenario activo)
+k6 --> ns_c1_kong
+k6 --> ns_c1_istio
+k6 --> ns_c2_base
+k6 --> ns_c2_istio
+k6 --> ns_c2_linkerd
+k6 --> ns_c3_base
+k6 --> ns_c3_basic
+k6 --> ns_c3_strict
+k6 --> ns_c4_base
+k6 --> ns_c4_mod
+k6 --> ns_c4_strict
+
+api_svc --> auth_svc : JWT validate
+api_svc --> data_svc : CRUD /products
+data_svc --> pg_svc : SQL
+auth_svc --> pg_svc : SQL
+
+run_dir *-- summaries
+run_dir *-- logs
+run_dir *-- state
+run_dir *-- res_csv
+run_dir *-- results
+run_dir *-- invalid
+
+note bottom of results
+  Columnas: control, variant, vus, replica,
+  avg_ms, p95_ms, err_pct, rps, checks_pct,
+  create_ok/fail, read_ok/fail, update_ok/fail,
+  delete_ok/fail, list_ok,
+  create/read/update/delete_p95_ms,
+  cpu_total_m, mem_total_Mi
+end note
+
+@enduml

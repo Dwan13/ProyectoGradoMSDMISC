@@ -1,0 +1,62 @@
+@startuml secuencia-api-gateway
+!theme plain
+title Experimento 01 - Diagrama de Secuencia: Flujo de Peticion por Gateway
+
+skinparam sequenceArrowThickness 2
+skinparam backgroundColor #FAFAFA
+skinparam participantBackgroundColor #E8F4FD
+skinparam participantBorderColor #2980B9
+
+actor "Cliente" as C
+participant "Gateway\n(Nginx/Istio/Kong)" as GW
+participant "api-service\n:8080" as API
+participant "auth-service\n:8080" as AUTH
+participant "data-service\n:8080" as DATA
+database "PostgreSQL\n:5432" as PG
+
+== Autenticacion (POST /login) ==
+
+C -> GW : HTTPS POST /login\n{username, password}
+GW -> AUTH : HTTP POST /login\n(TLS terminado en gateway)
+AUTH -> PG : SELECT * FROM app_users\nWHERE username=?
+PG --> AUTH : user record
+AUTH --> GW : HTTP 200 {jwt_token}
+GW --> C : HTTPS 200 {jwt_token}
+
+== Solicitud de Perfil (GET /profile) ==
+
+C -> GW : HTTPS GET /profile\nAuthorization: Bearer <token>
+GW -> API : HTTP GET /profile\n(reescritura de path)
+API -> AUTH : HTTP GET /validate\nAuthorization: Bearer <token>
+
+alt Token valido
+  AUTH --> API : HTTP 200 {user_info}
+  API -> DATA : HTTP GET /users?id=1
+  DATA -> PG : SELECT * FROM app_users WHERE id=1
+  PG --> DATA : user record
+  DATA --> API : HTTP 200 {user_data}
+  API --> GW : HTTP 200 {profile_response}
+  GW --> C : HTTPS 200 {profile_response}
+else Token invalido
+  AUTH --> API : HTTP 401 Unauthorized
+  API --> GW : HTTP 401
+  GW --> C : HTTPS 401 Unauthorized
+end
+
+== Diferencias por Configuracion ==
+
+note over GW
+  **Nginx**: Reescritura path /$2
+  Clase ingress: nginx
+  TLS terminado con Nginx cert
+
+  **Istio**: VirtualService con match de URI
+  Sidecar proxy en cada servicio
+  TLS terminado con credencial Istio
+
+  **Kong**: Anotaciones Kong en Ingress
+  Rate-limiting disponible
+  TLS terminado con Kong secret
+end note
+
+@enduml

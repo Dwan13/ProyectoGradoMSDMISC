@@ -1,0 +1,197 @@
+@startuml clases-api-gateway
+!theme plain
+title Experimento 01 - Diagrama de Clases: Recursos Kubernetes API Gateway
+
+skinparam classBackgroundColor #E8F4FD
+skinparam classBorderColor #2980B9
+skinparam backgroundColor #FAFAFA
+
+package "Recursos Kubernetes - API Gateway" {
+
+  abstract class KubernetesResource {
+    +apiVersion: String
+    +kind: String
+    +metadata: ObjectMeta
+    +spec: Object
+  }
+
+  class Namespace {
+    +name: String
+    +labels: Map<String, String>
+    --
+    +istio_injection: disabled|enabled
+    +linkerd_inject: disabled|enabled
+  }
+
+  class Deployment {
+    +name: String
+    +namespace: String
+    +replicas: int
+    +selector: LabelSelector
+    +template: PodTemplateSpec
+    --
+    +containers: List<Container>
+    +volumes: List<Volume>
+    +readinessProbe: Probe
+  }
+
+  class Container {
+    +name: String
+    +image: String
+    +imagePullPolicy: String
+    +ports: List<ContainerPort>
+    +env: List<EnvVar>
+    --
+    +livenessProbe: Probe
+    +readinessProbe: Probe
+  }
+
+  class Service {
+    +name: String
+    +namespace: String
+    +type: ClusterIP|NodePort
+    +selector: Map<String,String>
+    +ports: List<ServicePort>
+  }
+
+  class Ingress {
+    +name: String
+    +namespace: String
+    +ingressClassName: String
+    +annotations: Map<String,String>
+    +tls: List<IngressTLS>
+    +rules: List<IngressRule>
+  }
+
+  class IngressRule {
+    +host: String
+    +http: HTTPIngressRuleValue
+    --
+    +paths: List<HTTPIngressPath>
+    +pathType: Prefix|Exact|ImplementationSpecific
+  }
+
+  class NginxIngress {
+    +rewriteTarget: String
+    +sslRedirect: boolean
+    +useRegex: boolean
+    --
+    +backendService: Service
+    +backendPort: int
+  }
+
+  class IstioGateway {
+    +selector: Map<String,String>
+    +servers: List<Server>
+    --
+    +port: int
+    +protocol: HTTPS
+    +tls_mode: SIMPLE
+    +credentialName: String
+  }
+
+  class IstioVirtualService {
+    +hosts: List<String>
+    +gateways: List<String>
+    +http: List<HTTPRoute>
+    --
+    +match: URIMatch
+    +route: HTTPRouteDestination
+  }
+
+  class KongIngress {
+    +ingressClass: kong
+    +stripPath: boolean
+    +plugins: List<String>
+    --
+    +backendService: Service
+    +tlsSecret: String
+  }
+
+  class PostgreSQLDeployment {
+    +image: String = "postgres:15"
+    +replicas: int = 1
+    +env: POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+    +initScript: ConfigMap
+    --
+    +readinessCommand: pg_isready
+    +dataVolume: EmptyDir
+  }
+
+  class ConfigMap {
+    +name: String
+    +data: Map<String,String>
+    --
+    +init_sql: String
+  }
+
+  class Secret {
+    +name: String
+    +type: Opaque|kubernetes.io/tls
+    +data: Map<String,String>
+  }
+
+  class APIService {
+    +name: String = "api-service"
+    +port: int = 8080
+    +env: JWT_SECRET, DATA_SERVICE_URL, RATE_LIMIT_ENABLED
+    --
+    +healthEndpoint: String = "/health"
+    +callsAuth: boolean = true
+    +callsData: boolean = true
+  }
+
+  class AuthService {
+    +name: String = "auth-service"
+    +port: int = 8080
+    +env: JWT_SECRET, DB_HOST, DB_PORT, DB_NAME
+    --
+    +healthEndpoint: String = "/health"
+    +endpoints: /login, /validate
+  }
+
+  class DataService {
+    +name: String = "data-service"
+    +port: int = 8080
+    +env: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
+    --
+    +healthEndpoint: String = "/health"
+    +endpoints: /users, /products
+  }
+}
+
+KubernetesResource <|-- Namespace
+KubernetesResource <|-- Deployment
+KubernetesResource <|-- Service
+KubernetesResource <|-- Ingress
+KubernetesResource <|-- ConfigMap
+KubernetesResource <|-- Secret
+
+Ingress <|-- NginxIngress
+Ingress <|-- KongIngress
+Ingress "1" *-- "1..*" IngressRule
+
+KubernetesResource <|-- IstioGateway
+KubernetesResource <|-- IstioVirtualService
+
+Deployment "1" *-- "1..*" Container
+Deployment "1" --> "1" Service : expone
+Deployment --> Secret : referencia
+Deployment --> ConfigMap : monta
+
+PostgreSQLDeployment --> ConfigMap : init-sql
+PostgreSQLDeployment --> Secret : credenciales
+
+APIService --> AuthService : valida JWT
+APIService --> DataService : obtiene datos
+AuthService --> PostgreSQLDeployment : consulta usuarios
+DataService --> PostgreSQLDeployment : CRUD productos
+
+NginxIngress --> APIService : /api/*
+NginxIngress --> AuthService : /auth/*
+IstioVirtualService --> APIService : GET /profile
+IstioVirtualService --> AuthService : POST /login
+KongIngress --> APIService : /profile
+KongIngress --> AuthService : /login
+
+@enduml

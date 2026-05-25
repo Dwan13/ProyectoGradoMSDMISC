@@ -1,0 +1,85 @@
+@startuml secuencia-network-policies
+!theme plain
+title Experimento 03 - Diagrama de Secuencia: Evaluacion NetworkPolicy por Nivel
+
+skinparam sequenceArrowThickness 2
+skinparam backgroundColor #FAFAFA
+skinparam participantBackgroundColor #FEF9E7
+skinparam participantBorderColor #F39C12
+
+actor "Cliente" as C
+participant "Nginx Ingress" as NGINX
+participant "CNI Plugin\n(Calico/Cilium)" as CNI
+participant "api-service" as API
+participant "auth-service" as AUTH
+participant "data-service" as DATA
+database "PostgreSQL" as PG
+
+== Flujo Baseline (Sin NetworkPolicies) ==
+
+note over C, PG : **Sin NetworkPolicies**: CNI no evalua politicas, todo permitido
+C -> NGINX : HTTPS GET /profile
+NGINX -> API : HTTP (sin restriccion)
+API -> AUTH : HTTP /validate (sin restriccion)
+AUTH -> PG : SQL (libre)
+PG --> AUTH : datos
+AUTH --> API : JWT valido
+API -> DATA : HTTP /users (libre)
+DATA -> PG : SQL (libre)
+PG --> DATA : user_data
+DATA --> API : datos
+API --> NGINX : respuesta
+NGINX --> C : HTTPS 200
+
+== Flujo Basic NetworkPolicies ==
+
+note over C, PG : **Basic** (4 politicas): allow-intra-namespace permite trafico interno completo
+C -> NGINX : HTTPS GET /profile
+NGINX -> CNI : paquete hacia api-service:8080
+CNI -> CNI : Evaluar politicas:\n1. default-deny-all\n2. allow-from-ingress-controller\n(origen=nginx-ns, destino=api:8080)
+CNI -> API : PERMITIDO (allow-from-ingress)
+API -> CNI : paquete hacia auth-service:8080
+CNI -> CNI : Evaluar: allow-intra-namespace\n(mismo namespace -> PERMITIDO)
+CNI -> AUTH : PERMITIDO
+AUTH -> CNI : paquete hacia postgres:5432
+CNI -> CNI : Evaluar: allow-intra-namespace\n(mismo namespace -> PERMITIDO)
+CNI -> PG : PERMITIDO
+PG --> AUTH : datos
+AUTH --> API : JWT valido
+API -> DATA : PERMITIDO (intra-namespace)
+DATA -> PG : PERMITIDO (intra-namespace)
+PG --> DATA : user_data
+DATA --> API : datos
+API --> C : HTTPS 200
+
+== Flujo Strict NetworkPolicies ==
+
+note over C, PG : **Strict** (9 politicas): micro-segmentacion, minimo privilegio
+C -> NGINX : HTTPS GET /profile
+NGINX -> CNI : paquete hacia api-service:8080
+CNI -> CNI : Evaluar api-ingress:\n(origen=ingress-ctrl, destino=api:8080)\n-> PERMITIDO
+CNI -> API : PERMITIDO
+API -> CNI : paquete hacia auth-service:8080
+CNI -> CNI : Evaluar api-egress: destino auth:8080\n-> PERMITIDO\nEvaluar auth-ingress: origen api-service\n-> PERMITIDO
+CNI -> AUTH : PERMITIDO
+AUTH -> CNI : paquete hacia postgres:5432
+CNI -> CNI : Evaluar auth-egress: destino pg:5432\n-> PERMITIDO\nEvaluar postgres-ingress: origen auth\n-> PERMITIDO
+CNI -> PG : PERMITIDO
+PG --> AUTH : datos
+AUTH --> API : JWT valido
+API -> CNI : paquete hacia data-service:8080
+CNI -> CNI : Evaluar api-egress: destino data:8080\n-> PERMITIDO\nEvaluar data-ingress: origen api\n-> PERMITIDO
+CNI -> DATA : PERMITIDO
+DATA -> PG : PERMITIDO (data-egress + pg-ingress)
+PG --> DATA : user_data
+DATA --> API : datos
+API --> C : HTTPS 200
+
+== Intento de Movimiento Lateral (Strict) - BLOQUEADO ==
+
+actor "Atacante" as ATK
+ATK -> CNI : paquete desde api-service hacia postgres:5432\n(intentando saltar data-service)
+CNI -> CNI : Evaluar api-egress:\ndestino postgres NO esta en\napi-egress (solo auth:8080, data:8080)\n-> BLOQUEAR
+CNI --> ATK : Conexion RECHAZADA\n(paquete descartado)
+
+@enduml

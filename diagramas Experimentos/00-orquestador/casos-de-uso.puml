@@ -1,0 +1,77 @@
+@startuml casos-de-uso-orquestador
+!theme plain
+title Casos de Uso - Orquestador de Experimento CRUD
+
+left to right direction
+skinparam actorBackgroundColor #E8F4FD
+skinparam usecaseBackgroundColor #D6EAF8
+skinparam usecaseBorderColor #2980B9
+skinparam backgroundColor #FAFAFA
+
+actor "Investigador" as R
+actor "k6\nLoad Generator" as K6 <<sistema>>
+actor "kubectl /\nmicrok8s" as KCTL <<sistema>>
+actor "curl" as CURL <<sistema>>
+actor "Python\nConsolidator" as PY <<sistema>>
+actor "Kubernetes\nCluster" as K8S <<sistema>>
+
+rectangle "run-crud-experiment.sh - Orquestador" {
+
+  usecase "UC01: Ejecutar campana\ncompleta de experimentos" as UC01
+  usecase "UC02: Filtrar escenarios\npor --scenario" as UC02
+  usecase "UC03: Aplicar manifiestos\nKubernetes" as UC03
+  usecase "UC04: Esperar rollout\nde deployments" as UC04
+  usecase "UC05: Verificar disponibilidad\n(smoke check)" as UC05
+  usecase "UC06: Calentar el sistema\n(warmup phase)" as UC06
+  usecase "UC07: Capturar estado\ndel cluster (dump)" as UC07
+  usecase "UC08: Ejecutar prueba\nde carga k6" as UC08
+  usecase "UC09: Recolectar metricas\nde recursos (CPU/mem)" as UC09
+  usecase "UC10: Consolidar resultados\nen CSV" as UC10
+  usecase "UC11: Registrar escenario\ninvalido" as UC11
+
+  usecase "UC12: Autenticarse via\nPOST /auth/login" as UC12
+  usecase "UC13: CRUD completo\n/products" as UC13
+  usecase "UC14: Medir latencia\npor operacion CRUD" as UC14
+  usecase "UC15: Evaluar thresholds\nk6" as UC15
+}
+
+R --> UC01
+R --> UC02
+
+UC01 .> UC02 : <<extend>>
+UC01 .> UC03 : <<include>>
+UC01 .> UC04 : <<include>>
+UC01 .> UC05 : <<include>>
+UC01 .> UC08 : <<include>>
+UC01 .> UC10 : <<include>>
+
+UC05 .> UC11 : <<extend>>\n(si falla)
+UC01 .> UC06 : <<extend>>\n(si --warmup > 0)
+UC03 .> UC07 : <<extend>>\n(post-apply)
+UC08 .> UC09 : <<include>>
+
+UC08 .> UC12 : <<include>>
+UC08 .> UC13 : <<include>>
+UC13 .> UC14 : <<include>>
+UC13 .> UC15 : <<include>>
+
+KCTL --> UC03
+KCTL --> UC04
+KCTL --> UC07
+KCTL --> UC09
+
+CURL --> UC05
+CURL --> UC06
+
+K6 --> UC08
+K6 --> UC12
+K6 --> UC13
+K6 --> UC14
+K6 --> UC15
+
+PY --> UC10
+
+K8S --> UC04 : confirma rollout
+K8S --> UC03 : recibe manifiestos
+
+@enduml

@@ -1,0 +1,95 @@
+@startuml flujo-orquestador
+!theme plain
+title Diagrama de Flujo - Orquestador run-crud-experiment.sh
+
+skinparam activity {
+  BackgroundColor #E8F4FD
+  BorderColor #2980B9
+  DiamondBackgroundColor #FEF9E7
+  DiamondBorderColor #F39C12
+}
+skinparam backgroundColor #FAFAFA
+
+start
+
+:Parsear argumentos\n--vus, --replicas, --duration\n--warmup, --scenario;
+
+:Crear directorio de run:\nTesting/results/auto_runs/\ncrud_vus${VUS}_n${REPLICAS}_${STAMP}/;
+
+:Inicializar CSVs:\ninvalid-scenarios.csv\nresource_metrics.csv;
+
+if (--scenario especificado?) then (Si)
+  :Filtrar SCENARIOS[]\npor nombre parcial;
+else (No)
+  :Usar todos los 12 escenarios\nC1×3, C2×3, C3×3, C4×3;
+endif
+
+:TOTAL = #escenarios_filtrados × REPLICAS;
+
+note right
+  12 escenarios × 5 replicas = 60 runs
+  Ejecucion SECUENCIAL (no paralela)
+end note
+
+while (Para cada SCENARIO en FILTERED[]) is (hay mas)
+
+  :Leer: CTRL VAR NS HOST PORT;
+  note right
+    CTRL: C1|C2|C3|C4
+    VAR: baseline/kong/istio/etc.
+    NS: nombre del namespace
+    HOST: FQDN del ingress
+    PORT: NodePort HTTPS
+  end note
+
+  :apply_scenario(CTRL, VAR)\nkubectl apply -f namespace/\nkubectl apply -f *.yaml;
+
+  :wait_rollout(NS)\nEsperar deploy/auth-service\nEsperar deploy/api-service\nEsperar deploy/data-service\nEsperar deploy/postgres\n[timeout 180s cada uno];
+
+  if (smoke_check(HOST, PORT)?\n15 intentos × 2s = 30s max) then (FAIL)
+    :err "smoke FAIL";\nRegistrar en invalid-scenarios.csv:\nREPLICAS filas con reason=smoke_failed;
+    :COUNT += REPLICAS;
+    note right
+      El escenario se OMITE completo.
+      No se corre k6 para este escenario.
+    end note
+  else (OK)
+
+    :ok "smoke OK";
+
+    if (WARMUP > 0?) then (Si)
+      :warmup_phase(HOST, PORT, WARMUP)\nObtener JWT via /auth/login\nEnviar GET /api/products\ndurante ${WARMUP} segundos;
+    endif
+
+    :dump_state(VAR, NS, CTRL)\nGuardar YAML: deploy,svc,ingress,pods\nen state/${CTRL}_${VAR}.yaml;
+
+    :AUTH_BASE = "https://${HOST}:${PORT}/auth"\nAPI_BASE = "https://${HOST}:${PORT}/api"\nRESOLVE = "${HOST}:127.0.0.1";
+
+    while (para r = 1 to REPLICAS) is (r <= REPLICAS)
+      :COUNT++;
+      :log "[COUNT/TOTAL] ${CTRL}/${VAR} replica=r";
+
+      :k6 run\n  -e AUTH_BASE\n  -e API_BASE\n  -e RESOLVE\n  -e K6_INSECURE_SKIP_TLS_VERIFY=true\n  --vus ${VUS}\n  --duration ${DURATION}\n  --summary-export summaries/${CTRL}_${VAR}_repr.json\n  realistic-crud-flow.js;
+
+      if (k6 exit code != 0?) then (Si)
+        :warn "k6 exit=rc"\nVer logs/${CTRL}_${VAR}_repr.log;
+        note right
+          Puede ser que fallen thresholds.
+          No aborta el experimento.
+        end note
+      endif
+
+      :collect_resources(NS, CTRL, VAR, r)\nkubectl top pods -n NS\nSumar CPU/mem de api,auth,data,postgres\nAppend a resource_metrics.csv;
+
+    endwhile (r > REPLICAS)
+
+  endif
+
+endwhile (no hay mas)
+
+:Consolidar resultados con Python:\nLeer summaries/*.json\nMerge con resource_metrics.csv\nEscribir results.csv;
+
+:ok "Run completo"\nMostrar estadisticas de archivos;
+
+stop
+@enduml

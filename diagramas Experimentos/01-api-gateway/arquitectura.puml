@@ -1,0 +1,76 @@
+@startuml arquitectura-api-gateway
+!theme plain
+title Experimento 01 - Arquitectura API Gateway (Comparativa)
+
+skinparam componentStyle rectangle
+skinparam backgroundColor #FAFAFA
+skinparam component {
+  BackgroundColor #E8F4FD
+  BorderColor #2980B9
+}
+skinparam database {
+  BackgroundColor #FEF9E7
+  BorderColor #F39C12
+}
+skinparam cloud {
+  BackgroundColor #FDEDEC
+  BorderColor #E74C3C
+}
+
+actor "Cliente" as client
+
+rectangle "Configuracion Baseline - Nginx" #EAFAF1 {
+  component "[Nginx Ingress Controller]" as nginx
+  component "[api-service\n:8080]" as api_n
+  component "[auth-service\n:8080]" as auth_n
+  component "[data-service\n:8080]" as data_n
+  database "PostgreSQL 15" as pg_n
+  note right of nginx : namespace: realistic-nginx\nTLS terminado en ingress\nRewrite: /$2
+}
+
+rectangle "Configuracion Istio" #EAF4FB {
+  component "[Istio Ingress Gateway]" as istio_gw
+  component "[VirtualService]" as vs
+  component "[api-service\n+ sidecar]" as api_i
+  component "[auth-service\n+ sidecar]" as auth_i
+  component "[data-service\n+ sidecar]" as data_i
+  database "PostgreSQL 15" as pg_i
+  note right of istio_gw : namespace: realistic-istio\nistio-injection: enabled\nTLS mode: SIMPLE
+}
+
+rectangle "Configuracion Kong" #FDF2F8 {
+  component "[Kong Ingress Controller]" as kong
+  component "[api-service\n:8080]" as api_k
+  component "[auth-service\n:8080]" as auth_k
+  component "[data-service\n:8080]" as data_k
+  database "PostgreSQL 15" as pg_k
+  note right of kong : namespace: realistic-kong\nKong rate-limiting\nTLS: realistic-tls secret
+}
+
+client --> nginx : HTTPS /auth/*, /api/*
+client --> istio_gw : HTTPS /profile, /login
+client --> kong : HTTPS /profile, /login
+
+nginx --> api_n : /api/*
+nginx --> auth_n : /auth/*
+api_n --> data_n : internal HTTP
+api_n --> auth_n : token validation
+data_n --> pg_n : SQL :5432
+auth_n --> pg_n : SQL :5432
+
+istio_gw --> vs
+vs --> api_i : GET /profile
+vs --> auth_i : POST /login
+api_i --> data_i : internal mTLS
+api_i --> auth_i : token validation
+data_i --> pg_i : SQL :5432
+auth_i --> pg_i : SQL :5432
+
+kong --> api_k : /profile
+kong --> auth_k : /login
+api_k --> data_k : internal HTTP
+api_k --> auth_k : token validation
+data_k --> pg_k : SQL :5432
+auth_k --> pg_k : SQL :5432
+
+@enduml

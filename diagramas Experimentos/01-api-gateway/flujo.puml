@@ -1,0 +1,71 @@
+@startuml flujo-api-gateway
+!theme plain
+title Experimento 01 - Diagrama de Flujo: Enrutamiento API Gateway
+
+skinparam activity {
+  BackgroundColor #E8F4FD
+  BorderColor #2980B9
+  DiamondBackgroundColor #FEF9E7
+  DiamondBorderColor #F39C12
+}
+skinparam backgroundColor #FAFAFA
+
+start
+
+:Cliente envia peticion HTTPS;
+
+fork
+  :Configuracion\nNginx Ingress;
+  if (Ruta?) then (coincide /auth/*)
+    :Reescribir path con regex /$2;
+    :Reenviar a auth-service:8080;
+  else (coincide /api/*)
+    :Reescribir path con regex /$2;
+    :Reenviar a api-service:8080;
+  endif
+fork again
+  :Configuracion\nIstio Gateway;
+  :Istio IngressGateway recibe HTTPS;
+  :VirtualService evalua ruta;
+  if (Ruta?) then (GET /profile)
+    :Enviar a api-service con sidecar;
+  else (POST /login)
+    :Enviar a auth-service con sidecar;
+  endif
+fork again
+  :Configuracion\nKong Ingress;
+  :Kong Controller recibe HTTPS;
+  :Evaluar anotaciones de Kong;
+  if (Ruta?) then (/profile)
+    :Reenviar a api-service:8080;
+  else (/login)
+    :Reenviar a auth-service:8080;
+  endif
+end fork
+
+:Servicio recibe peticion;
+
+if (Operacion requiere datos?) then (Si)
+  :api-service llama data-service:8080;
+  :data-service consulta PostgreSQL:5432;
+  :Retornar datos;
+else (No)
+  :Procesar localmente;
+endif
+
+if (Requiere validacion token?) then (Si)
+  :api-service llama auth-service:8080;
+  :auth-service verifica JWT;
+  if (Token valido?) then (Si)
+    :Continuar procesamiento;
+  else (No)
+    :Retornar HTTP 401;
+    stop
+  endif
+endif
+
+:Retornar respuesta HTTP 200;
+:Cliente recibe respuesta;
+
+stop
+@enduml

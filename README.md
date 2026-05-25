@@ -1,141 +1,244 @@
-# muBench (Entrega enfocada en S2, S3, S4 y S6)
+# Experimentacion: Impacto de Controles de Seguridad en Microservicios
 
-Este repositorio esta preparado para ejecutar y validar solo los escenarios:
-- S2: Postgres real con controles C1-C4
-- S3: muBench advanced (control matrix)
-- S4: semantic equivalent
-- S6: campana integrada final (quality + security)
+Trabajo de grado que evalua el impacto en rendimiento de cuatro controles de seguridad aplicados a una arquitectura de microservicios realista desplegada en Kubernetes.
 
-Todo el flujo documental se centraliza en este README.
+> Las imagenes de los servicios y algunas convenciones de nombres usan el prefijo `mubench` por dependencia historica con la infraestructura base del proyecto.
 
-## 1. Requisitos
+---
 
-Requisitos minimos en Linux:
-- kubectl
-- MicroK8s (o cluster Kubernetes compatible)
-- Docker
-- Python 3.10+
-- pip
-- k6
+## Descripcion
 
-Verificacion rapida:
-```bash
-kubectl version --client
-microk8s status || true
-python3 --version
-k6 version
+Este proyecto mide la latencia, throughput y tasa de errores de una aplicacion de microservicios bajo diferentes configuraciones de seguridad. Cada experimento aisla una variable de seguridad (tipo de API gateway, mTLS, politicas de red, rate limiting) y compara tres niveles: sin control (baseline), control moderado y control estricto.
+
+La carga de trabajo es un flujo CRUD completo sobre `/products` con autenticacion JWT, generado por k6 y ejecutado desde un orquestador bash que automatiza el ciclo completo: despliegue, validacion, calentamiento, prueba de carga, recoleccion de metricas y consolidacion de resultados.
+
+---
+
+## Arquitectura de Servicios
+
+```
+Cliente (k6)
+    │
+    └─► Gateway / Ingress (variable por experimento)
+              │
+              ├─► api-service  :8080   ─► auth-service :8080 ─► PostgreSQL :5432
+              │                        └─► data-service :8080 ─► PostgreSQL :5432
+              └─► auth-service :8080
 ```
 
-## 2. Preparacion del entorno
+**Servicios (FastAPI / Python)**
 
-Desde raiz del repo:
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+| Servicio | Puerto | Funcion |
+|---|---|---|
+| `api-service` | 8080 | Orquesta las operaciones CRUD, valida JWT con auth-service |
+| `auth-service` | 8080 | Emite y valida tokens JWT, gestiona usuarios en PostgreSQL |
+| `data-service` | 8080 | CRUD sobre la tabla `products` en PostgreSQL |
+| `postgres` | 5432 | Base de datos compartida (tablas: `app_users`, `app_products`) |
+
+---
+
+## Experimentos
+
+Cada experimento tiene tres configuraciones desplegadas en namespaces independientes con su propio PostgreSQL y certificado TLS.
+
+### C1 — API Gateway
+
+Compara el impacto en rendimiento de tres mecanismos de ingress.
+
+| Variante | Namespace | Puerto | Notas |
+|---|---|---|---|
+| `baseline` | `realistic-nginx` | 32167 | Nginx Ingress con reescritura de path |
+| `kong` | `realistic-kong` | 30443 | Kong Ingress con soporte de plugins |
+| `istio` | `realistic-istio` | 32012 | Istio Gateway + VirtualService, sidecar Envoy |
+
+### C2 — mTLS (Service Mesh)
+
+Mide el overhead del cifrado mutuo TLS entre servicios.
+
+| Variante | Namespace | Puerto | Notas |
+|---|---|---|---|
+| `baseline` | `realistic-without-mtls` | 32167 | HTTP plano, sin sidecar |
+| `istio-mtls` | `realistic-istio-mtls` | 32012 | PeerAuthentication STRICT, certificados SPIFFE |
+| `linkerd-mtls` | `realistic-linkerd-mtls` | 32167 | mTLS automatico, proxy Linkerd (Rust) |
+
+### C3 — Network Policies
+
+Evalua el costo de la micro-segmentacion de red via CNI.
+
+| Variante | Namespace | Puerto | Notas |
+|---|---|---|---|
+| `baseline` | `realistic-without-network-policies` | 32167 | Sin politicas, trafico libre |
+| `basic` | `realistic-basic-network-policies` | 32167 | 4 politicas, deny-all + allow intra-namespace |
+| `strict` | `realistic-strict-network-policies` | 32167 | 9 politicas, minimo privilegio por servicio |
+
+### C4 — Rate Limiting
+
+Mide el impacto del throttling por IP en el ingress Nginx.
+
+| Variante | Namespace | Puerto | Notas |
+|---|---|---|---|
+| `baseline` | `realistic-without-rate-limiting` | 32167 | Sin limite de peticiones |
+| `moderate` | `realistic-moderate-rate-limiting` | 32167 | 1200 rpm por IP (20 req/seg) |
+| `strict` | `realistic-strict-rate-limiting` | 32167 | 300 rpm por IP (5 req/seg) |
+
+---
+
+## Estructura del Repositorio
+
+```
+ProyectoGradoMSDMISC/
+├── experiments/                        # Manifiestos Kubernetes por experimento
+│   ├── 01-api-gateway-realistic/
+│   │   ├── baseline/                   # namespace/ + ingress nginx
+│   │   ├── kong/                       # namespace/ + ingress kong
+│   │   └── istio/                      # namespace/ + gateway + virtualservice
+│   ├── 02-mtls-service-mesh-realistic/
+│   ├── 03-network-policies-realistic/
+│   └── 04-rate-limiting-realistic/
+│
+├── RealisticServices/                  # Codigo fuente de los microservicios
+│   ├── api-service/                    # FastAPI: orquestacion CRUD + JWT
+│   ├── auth-service/                   # FastAPI: login + validacion JWT
+│   ├── data-service/                   # FastAPI: CRUD /products sobre PostgreSQL
+│   ├── k6/
+│   │   ├── realistic-crud-flow.js      # Script k6: flujo CRUD completo (principal)
+│   │   └── realistic-flow.js           # Script k6: flujo mixto de lectura
+│   ├── k8s/                            # Manifiestos base reutilizables
+│   ├── controls/
+│   │   └── apply-control.sh
+│   └── deploy-realistic.sh
+│
+├── scripts/                            # Herramientas de orquestacion y analisis
+│   ├── run-crud-experiment.sh          # ORQUESTADOR PRINCIPAL
+│   ├── graceful-startup.sh
+│   ├── graceful-shutdown.sh
+│   ├── keep-portforwards.sh
+│   ├── monitoring-up.sh / monitoring-down.sh
+│   └── validate_environment.sh
+│
+├── Testing/                            # Resultados y analisis estadistico
+│   ├── results/auto_runs/              # Salida del orquestador (generada)
+│   │   └── crud_vusN_nM_TIMESTAMP/
+│   │       ├── results.csv             # Consolidado final
+│   │       ├── resource_metrics.csv    # CPU/mem por replica
+│   │       ├── invalid-scenarios.csv   # Escenarios que fallaron smoke check
+│   │       ├── summaries/              # JSON k6 por replica
+│   │       ├── logs/                   # stdout k6 por replica
+│   │       └── state/                  # Dumps YAML del cluster
+│   ├── consolidate_all_metrics.py
+│   ├── s6_statistical_analysis.py
+│   └── extract_clean_metrics.py
+│
+└── diagramas Experimentos/             # Diagramas PlantUML del proyecto
+    ├── 00-orquestador/                 # Arquitectura del orquestador y k6
+    ├── 01-api-gateway/
+    ├── 02-mtls-service-mesh/
+    ├── 03-network-policies/
+    └── 04-rate-limiting/
 ```
 
-Si necesitas validacion base del host:
+---
+
+## Requisitos
+
+- Kubernetes (MicroK8s recomendado)
+- Addons habilitados: `dns`, `ingress`, `metrics-server`, `registry`
+- Istio instalado (para C1/istio y C2/istio-mtls)
+- Linkerd instalado (para C2/linkerd-mtls)
+- Kong Ingress Controller (para C1/kong)
+- k6 >= 0.45
+- Python 3 (consolidacion de resultados)
+- Imagenes publicadas en registry local `localhost:32000/mubench/`
+
+---
+
+## Ejecucion
+
+### Ejecutar la campana completa (12 escenarios)
+
 ```bash
-bash scripts/validate_environment.sh
+bash scripts/run-crud-experiment.sh --vus 20 --replicas 5 --duration 60s
 ```
 
-## 3. Levantar escenarios
+### Ejecutar un solo control
 
-### S2 (postgres real)
 ```bash
-bash scripts/setup-postgres-real-scenario.sh
+bash scripts/run-crud-experiment.sh --scenario C1
+bash scripts/run-crud-experiment.sh --scenario kong
 ```
 
-### S3 (mubench advanced)
+### Con calentamiento previo
+
 ```bash
-bash scripts/setup-scenario3-mubench-advanced.sh
+bash scripts/run-crud-experiment.sh --vus 20 --replicas 5 --duration 60s --warmup 30
 ```
 
-### S4 (semantic equivalent)
-```bash
-bash scripts/setup-scenario4-semantic-equivalent.sh
-```
+### Parametros disponibles
 
-## 4. Ejecutar pruebas
+| Parametro | Por defecto | Descripcion |
+|---|---|---|
+| `--vus` | 20 | Virtual Users concurrentes en k6 |
+| `--replicas` | 5 | Repeticiones por escenario (para significancia estadistica) |
+| `--duration` | `60s` | Duracion de cada run k6 |
+| `--warmup` | 0 | Segundos de trafico previo para estabilizar caches |
+| `--scenario` | (todos) | Filtro por nombre parcial (ej: `kong`, `C2`, `istio-mtls`) |
 
-### S2 final reproducible
-Dry run:
-```bash
-bash scripts/run-s2-final-repro.sh
-```
+---
 
-Ejecucion real:
-```bash
-bash scripts/run-s2-final-repro.sh --execute
-```
+## Flujo k6 — realistic-crud-flow.js
 
-### S3 scaling por controles
-```bash
-bash scripts/run-scaling-scenario3-controls.sh
-```
+Cada VU ejecuta por iteracion:
 
-### S4 scaling semantic equivalent
-```bash
-bash scripts/run-scaling-scenario4-semantic-equivalent.sh
-```
+1. `POST /auth/login` → obtiene JWT token
+2. `GET /api/products?limit=20&offset=0` → lista productos
+3. `POST /api/products` → crea producto (nombre unico por VU + iteracion)
+4. `GET /api/products/:id` → lee el producto creado
+5. `PUT /api/products/:id` → actualiza precio y descripcion
+6. `GET /api/products/:id` → lee estado post-actualizacion
+7. `DELETE /api/products/:id` → elimina el producto
+8. `sleep(0.3s)` → pacing
 
-### S6 integrado (campana final)
-Dry run:
-```bash
-bash scripts/run-s6-integrated-repro.sh
-```
+**Total: 7 requests por iteracion.**
 
-Ejecucion real:
-```bash
-bash scripts/run-s6-integrated-repro.sh --execute --continue-on-readiness-fail
-```
+### Thresholds
 
-## 5. Analisis de resultados S6
+| Metrica | Umbral |
+|---|---|
+| `http_req_failed` | rate < 5% |
+| `http_req_duration` | p95 < 700 ms |
+| `checks` | rate > 95% |
+| `crud_*_success_total` | count > 0 (cada operacion) |
 
-Consolidar metricas desde resultados NDJSON:
-```bash
-python3 Testing/analyze_s6_integrated_results.py
-```
+---
 
-Analisis estadistico final y reporte:
-```bash
-python3 Testing/s6_statistical_analysis.py
-```
+## Metricas Recolectadas
 
-Salida esperada principal:
-- CSV consolidado en `Testing/results/scaling_tests/`
-- Reporte y graficas en `Testing/results/s6_analysis/`
+El consolidador Python genera `results.csv` con las siguientes columnas por replica:
 
-## 6. Comandos utiles de validacion
+| Columna | Descripcion |
+|---|---|
+| `control`, `variant` | Identificador del escenario (ej: C1, kong) |
+| `vus`, `replica` | Parametros del run |
+| `avg_ms`, `p95_ms` | Latencia global promedio y percentil 95 |
+| `err_pct` | Porcentaje de errores HTTP |
+| `rps` | Throughput (requests por segundo) |
+| `checks_pct` | Porcentaje de checks k6 pasados |
+| `create/read/update/delete_ok` | Conteo de operaciones exitosas por tipo |
+| `create/read/update/delete_p95_ms` | Latencia p95 por operacion CRUD |
+| `cpu_total_m` | CPU total de los 4 pods en milicores (post-run) |
+| `mem_total_Mi` | Memoria total de los 4 pods en MiB (post-run) |
 
-Compilacion rapida del analizador:
-```bash
-python3 -m py_compile Testing/s6_statistical_analysis.py
-```
+---
 
-Estado de pods:
-```bash
-kubectl get pods -A
-```
+## Diagramas
 
-Recursos:
-```bash
-kubectl top nodes
-kubectl top pods -A
-```
+Los diagramas PlantUML del proyecto estan en `diagramas Experimentos/`. Cada experimento tiene:
 
-## 7. Flujo recomendado de entrega (S2/S3/S4/S6)
+- `arquitectura.puml` — vista comparativa de las tres configuraciones
+- `flujo.puml` — diagrama de actividad del flujo de peticiones
+- `clases.puml` — recursos Kubernetes como clases con relaciones
+- `paquetes.puml` — namespaces y dependencias entre componentes
+- `casos-de-uso.puml` — actores e interacciones
+- `secuencia.puml` — traza de mensajes entre componentes
 
-1. Preparar entorno y validar prerequisitos.
-2. Levantar escenario objetivo.
-3. Ejecutar pruebas del escenario.
-4. Para S6, correr consolidacion y analisis estadistico.
-5. Verificar artefactos generados en `Testing/results/`.
-
-## 8. Notas de alcance
-
-- Esta entrega excluye intencionalmente S1 y addons no necesarios para S2/S3/S4/S6.
-- La operacion diaria de apagado/arranque puede apoyarse en:
-  - `scripts/graceful-shutdown.sh`
-  - `scripts/graceful-startup.sh`
+Para renderizarlos: extension PlantUML en VS Code o [plantuml.com/plantuml](http://www.plantuml.com/plantuml/).

@@ -1,0 +1,72 @@
+@startuml arquitectura-rate-limiting
+!theme plain
+title Experimento 04 - Arquitectura Rate Limiting en Ingress Nginx (Comparativa)
+
+skinparam componentStyle rectangle
+skinparam backgroundColor #FAFAFA
+
+actor "Cliente\n(carga normal)" as client
+actor "Cliente\n(carga alta)" as client_heavy #pink
+
+rectangle "Baseline - Sin Rate Limiting" #EAFAF1 {
+  component "[Nginx Ingress\nSin limite]" as nginx_b
+  component "[api-service\nRATE_LIMIT_ENABLED=false]" as api_b
+  component "[auth-service]" as auth_b
+  component "[data-service]" as data_b
+  database "[PostgreSQL]" as pg_b
+  note right of nginx_b : namespace: realistic-without-rate-limiting\nTodas las peticiones procesadas\nSin HTTP 503\nLatencia base de referencia
+}
+
+rectangle "Moderate Rate Limiting (1200 rpm)" #FEF9E7 {
+  rectangle "Nginx Ingress (Moderate)" #FDEBD0 {
+    component "[limit-rpm: 1200\nPor IP del cliente]" as limit_mod
+    component "[burst-multiplier: 1]" as burst_mod
+    component "[503 si > 1200 rpm]" as reject_mod
+  }
+  component "[api-service]" as api_mod
+  component "[auth-service]" as auth_mod
+  component "[data-service]" as data_mod
+  database "[PostgreSQL]" as pg_mod
+  note right of limit_mod : namespace: realistic-moderate-rate-limiting\n20 req/seg por IP\nProteccion moderada contra abuso\nPermite picos normales de trafico
+}
+
+rectangle "Strict Rate Limiting (300 rpm)" #FDEDEC {
+  rectangle "Nginx Ingress (Strict)" #FADBD8 {
+    component "[limit-rpm: 300\nPor IP del cliente]" as limit_str
+    component "[burst-multiplier: 1]" as burst_str
+    component "[503 si > 300 rpm]" as reject_str
+  }
+  component "[api-service]" as api_str
+  component "[auth-service]" as auth_str
+  component "[data-service]" as data_str
+  database "[PostgreSQL]" as pg_str
+  note right of limit_str : namespace: realistic-strict-rate-limiting\n5 req/seg por IP\nProteccion agresiva/DDoS\nAlta tasa de rechazo bajo carga
+}
+
+client --> nginx_b : HTTPS\n(sin limite)
+client --> limit_mod : HTTPS < 1200 rpm
+client --> limit_str : HTTPS < 300 rpm
+
+client_heavy --> nginx_b : HTTPS\n(todo procesado)
+client_heavy --> limit_mod : > 1200 rpm -> HTTP 503
+client_heavy --> limit_str : > 300 rpm -> HTTP 503
+
+nginx_b --> api_b : todas las peticiones
+api_b --> auth_b
+api_b --> data_b
+data_b --> pg_b
+auth_b --> pg_b
+
+limit_mod --> api_mod : peticiones bajo limite
+api_mod --> auth_mod
+api_mod --> data_mod
+data_mod --> pg_mod
+auth_mod --> pg_mod
+
+limit_str --> api_str : peticiones bajo limite
+api_str --> auth_str
+api_str --> data_str
+data_str --> pg_str
+auth_str --> pg_str
+
+@enduml

@@ -1,0 +1,94 @@
+@startuml secuencia-mtls
+!theme plain
+title Experimento 02 - Diagrama de Secuencia: Handshake mTLS Istio vs Linkerd
+
+skinparam sequenceArrowThickness 2
+skinparam backgroundColor #FAFAFA
+skinparam participantBackgroundColor #EAF4FB
+skinparam participantBorderColor #2980B9
+
+actor "Cliente" as C
+participant "Ingress Gateway" as GW
+
+box "Configuracion Istio mTLS STRICT" #D6EAF8
+  participant "Envoy Sidecar\n(api-service)" as SA
+  participant "api-service" as API
+  participant "Envoy Sidecar\n(auth-service)" as SB
+  participant "auth-service" as AUTH
+end box
+
+box "Control Plane" #FDFEFE
+  participant "istiod\n(Istio CA)" as ISTIOD
+end box
+
+== Inicializacion: Istiod emite certificados SPIFFE ==
+
+ISTIOD -> SA : Certificado SPIFFE\nspiffe://cluster.local/ns/realistic-istio-mtls/sa/api
+ISTIOD -> SB : Certificado SPIFFE\nspiffe://cluster.local/ns/realistic-istio-mtls/sa/auth
+
+== Peticion del cliente ==
+
+C -> GW : HTTPS POST /login\n{credentials}
+GW -> SA : TCP Proxied
+
+== Handshake mTLS entre api-service y auth-service ==
+
+SA -> SB : TLS ClientHello\n+ certificado SPIFFE de SA
+
+note over SA, SB
+  Ambos sidecars verifican:
+  1. Certificado valido y no expirado
+  2. Firmado por la CA de confianza (istiod)
+  3. SPIFFE URI pertenece al mismo trust domain
+end note
+
+SB -> SA : TLS ServerHello\n+ certificado SPIFFE de SB\n+ ServerFinished
+SA -> SB : ClientFinished\n(Canal mTLS establecido)
+SA --> API : peticion via localhost\n(sin overhead TLS adicional)
+API -> AUTH : peticion via localhost\n(sidecar maneja mTLS)
+AUTH --> SB : respuesta
+SB --> SA : respuesta via mTLS
+SA --> GW : respuesta
+GW --> C : HTTPS 200 {jwt_token}
+
+== Intento de conexion HTTP plano (rechazado por STRICT) ==
+
+participant "Servicio\nExterno" as EXT
+
+EXT -> SB : HTTP plano (sin TLS)
+SB -> SB : Verificar PeerAuthentication\nmode: STRICT
+SB --> EXT : Connection Reset / 503\n(HTTP plano RECHAZADO)
+
+note over EXT, SB
+  PeerAuthentication mode: STRICT
+  Rechaza cualquier conexion que no
+  presente un certificado mTLS valido
+end note
+
+== Linkerd: mTLS Automatico (sin configuracion) ==
+
+box "Configuracion Linkerd" #F9EBEA
+  participant "Linkerd Proxy\n(api-service)" as LA
+  participant "api-service\n(Linkerd)" as LAPI
+  participant "Linkerd Proxy\n(auth-service)" as LB
+  participant "auth-service\n(Linkerd)" as LAUTH
+end box
+
+C -> LA : HTTP (Nginx termina HTTPS)
+LA -> LA : Detectar destino de red
+LA -> LB : mTLS automatico\n(certificados gestionados por Linkerd)
+LB --> LA : Respuesta via mTLS
+LA --> LAPI : localhost
+LAPI -> LAUTH : via proxy Linkerd
+LAUTH --> LAPI : respuesta
+LAPI --> C : respuesta final
+
+note over LA, LB
+  Linkerd gestiona mTLS automaticamente:
+  - Sin PeerAuthentication manual
+  - Sin DestinationRule
+  - Certificados rotados cada 24h
+  - Proxy mas liviano (Rust vs C++ Envoy)
+end note
+
+@enduml

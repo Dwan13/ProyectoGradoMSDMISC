@@ -1,0 +1,173 @@
+@startuml clases-network-policies
+!theme plain
+title Experimento 03 - Diagrama de Clases: Recursos Kubernetes NetworkPolicy
+
+skinparam classBackgroundColor #FEF9E7
+skinparam classBorderColor #F39C12
+skinparam backgroundColor #FAFAFA
+
+package "Recursos NetworkPolicy - Experimento 03" {
+
+  abstract class KubernetesResource {
+    +apiVersion: String
+    +kind: String
+    +metadata: ObjectMeta
+  }
+
+  class NetworkPolicy {
+    +name: String
+    +namespace: String
+    +podSelector: LabelSelector
+    +policyTypes: List<PolicyType>
+    +ingress: List<NetworkPolicyIngressRule>
+    +egress: List<NetworkPolicyEgressRule>
+    --
+    +matchesPod(pod: Pod): boolean
+    +allowsIngress(from: Pod, port: int): boolean
+    +allowsEgress(to: Pod, port: int): boolean
+  }
+
+  enum PolicyType {
+    Ingress
+    Egress
+  }
+
+  class NetworkPolicyIngressRule {
+    +from: List<NetworkPolicyPeer>
+    +ports: List<NetworkPolicyPort>
+  }
+
+  class NetworkPolicyEgressRule {
+    +to: List<NetworkPolicyPeer>
+    +ports: List<NetworkPolicyPort>
+  }
+
+  class NetworkPolicyPeer {
+    +podSelector: LabelSelector
+    +namespaceSelector: LabelSelector
+    +ipBlock: IPBlock
+  }
+
+  class NetworkPolicyPort {
+    +protocol: TCP | UDP
+    +port: int
+  }
+
+  class DefaultDenyAll {
+    +name: String = "default-deny-all"
+    +podSelector: {} (todos los pods)
+    +policyTypes: [Ingress, Egress]
+    +ingress: [] (ninguna regla -> deny)
+    +egress: [] (ninguna regla -> deny)
+  }
+
+  class AllowIntraNamespace {
+    +name: String = "allow-intra-namespace"
+    +podSelector: {} (todos)
+    +from: podSelector:{} mismo namespace
+    +ports: todos
+  }
+
+  class AllowFromIngressController {
+    +name: String = "allow-from-ingress-controller"
+    +podSelector: app in [api,auth]
+    +from: namespaceSelector: ingress namespaces
+    +ports: [8080/TCP]
+  }
+
+  class AllowEgressDNS {
+    +name: String = "allow-egress-dns"
+    +podSelector: {} (todos)
+    +to: namespaceSelector: kube-system
+    +ports: [53/UDP, 53/TCP]
+  }
+
+  class AuthIngressStrict {
+    +name: String = "auth-ingress"
+    +podSelector: app=auth-service
+    +from: [ingress-controller, api-service]
+    +ports: [8080/TCP]
+  }
+
+  class AuthEgressStrict {
+    +name: String = "auth-egress"
+    +podSelector: app=auth-service
+    +to: [postgres-service]
+    +ports: [5432/TCP]
+  }
+
+  class APIIngressStrict {
+    +name: String = "api-ingress"
+    +podSelector: app=api-service
+    +from: [ingress-controller]
+    +ports: [8080/TCP]
+  }
+
+  class APIEgressStrict {
+    +name: String = "api-egress"
+    +podSelector: app=api-service
+    +to: [auth-service:8080, data-service:8080]
+    +ports: [8080/TCP]
+  }
+
+  class DataIngressStrict {
+    +name: String = "data-ingress"
+    +podSelector: app=data-service
+    +from: [api-service]
+    +ports: [8080/TCP]
+  }
+
+  class DataEgressStrict {
+    +name: String = "data-egress"
+    +podSelector: app=data-service
+    +to: [postgres-service]
+    +ports: [5432/TCP]
+  }
+
+  class PostgresIngressStrict {
+    +name: String = "postgres-ingress"
+    +podSelector: app=postgres
+    +from: [auth-service, data-service]
+    +ports: [5432/TCP]
+  }
+
+  class BasicPolicySet {
+    +totalPolicies: int = 4
+    +allowsIntraNamespaceLateral: boolean = true
+    +policies: [DefaultDenyAll, AllowIntraNamespace,\n AllowFromIngressController, AllowEgressDNS]
+  }
+
+  class StrictPolicySet {
+    +totalPolicies: int = 9
+    +allowsLateralMovement: boolean = false
+    +policies: [DefaultDenyAll, AllowEgressDNS,\n AuthIngressStrict, AuthEgressStrict,\n APIIngressStrict, APIEgressStrict,\n DataIngressStrict, DataEgressStrict,\n PostgresIngressStrict]
+  }
+}
+
+KubernetesResource <|-- NetworkPolicy
+
+NetworkPolicy <|-- DefaultDenyAll
+NetworkPolicy <|-- AllowIntraNamespace
+NetworkPolicy <|-- AllowFromIngressController
+NetworkPolicy <|-- AllowEgressDNS
+NetworkPolicy <|-- AuthIngressStrict
+NetworkPolicy <|-- AuthEgressStrict
+NetworkPolicy <|-- APIIngressStrict
+NetworkPolicy <|-- APIEgressStrict
+NetworkPolicy <|-- DataIngressStrict
+NetworkPolicy <|-- DataEgressStrict
+NetworkPolicy <|-- PostgresIngressStrict
+
+NetworkPolicy "1" *-- "0..*" NetworkPolicyIngressRule
+NetworkPolicy "1" *-- "0..*" NetworkPolicyEgressRule
+NetworkPolicy "1" --> "1" PolicyType
+
+NetworkPolicyIngressRule "1" *-- "1..*" NetworkPolicyPeer
+NetworkPolicyIngressRule "1" *-- "0..*" NetworkPolicyPort
+NetworkPolicyEgressRule "1" *-- "1..*" NetworkPolicyPeer
+NetworkPolicyEgressRule "1" *-- "0..*" NetworkPolicyPort
+
+BasicPolicySet "1" *-- "4" NetworkPolicy
+StrictPolicySet "1" *-- "9" NetworkPolicy
+
+@enduml
