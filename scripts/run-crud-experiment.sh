@@ -24,7 +24,7 @@ K6_SCRIPT="${ROOT_DIR}/RealisticServices/k6/realistic-crud-flow.js"
 VUS=20
 REPLICAS=5
 DURATION="60s"
-WARMUP="0"          # segundos de calentamiento previo a cada escenario (0 = off)
+WARMUP="10"         # segundos de calentamiento previo a cada escenario (10s mínimo recomendado)
 SCENARIO_FILTER=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -112,10 +112,122 @@ apply_scenario() {
 
 wait_rollout() {
   local ns="$1"
+  local failed=0
   for d in auth-service api-service data-service postgres; do
-    kctl -n "$ns" rollout status deploy/"$d" --timeout=180s >/dev/null 2>&1 \
-      || warn "rollout $d en $ns con warnings"
+    if ! kctl -n "$ns" rollout status deploy/"$d" --timeout=240s >/dev/null 2>&1; then
+      err "rollout $d en $ns NO completó en 240s"
+      kctl -n "$ns" get pods -l app="$d" -o wide 2>/dev/null | sed 's/^/         /'
+      failed=1
+    fi
   done
+  # Espera adicional: todas las pods Ready (no solo Available).
+  # Usa split() porque awk POSIX no soporta backreferences en regex.
+  local tries=24
+  for ((i=1;i<=tries;i++)); do
+    local not_ready
+    not_ready=$(kctl -n "$ns" get pods --no-headers 2>/dev/null \
+      | awk '{split($2,a,"/"); if (a[1]!=a[2] || $3!~/Running|Completed/) print}' \
+      | wc -l)
+    [[ "$not_ready" -eq 0 ]] && return $failed
+    sleep 5
+  done
+  warn "$ns aún tiene pods no-Ready tras 120s extra"
+  return $failed
+}
+
+# Garantiza que los sidecars (Envoy/Linkerd) estén inyectados en los pods.
+# Tras `kubectl label namespace ... injection=enabled`, los pods existentes
+# NO reciben sidecar; hay que reiniciarlos. Sin este paso, C2/*-mtls corre
+# sin mTLS aunque las policies digan STRICT.
+ensure_sidecars() {
+  local ns="$1" var="$2"
+  local expected_containers
+  case "$var" in
+    istio-mtls)   expected_containers="istio-proxy" ;;
+    linkerd-mtls) expected_containers="linkerd-proxy" ;;
+    *) return 0 ;;
+  esac
+  # Verifica si algún pod NO tiene el sidecar esperado
+  local missing
+  missing=$(kctl -n "$ns" get pods -o json 2>/dev/null \
+    | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+bad=[]
+for p in d.get('items',[]):
+    cs=[c['name'] for c in p['spec'].get('containers',[])]
+    if '${expected_containers}' not in cs:
+        bad.append(p['metadata']['name'])
+print(' '.join(bad))
+" 2>/dev/null || true)
+  if [[ -n "$missing" ]]; then
+    warn "sidecar ${expected_containers} faltante en: $missing → reiniciando deployments"
+    kctl -n "$ns" rollout restart deploy >/dev/null 2>&1 || true
+    wait_rollout "$ns"
+    # Re-verifica
+    missing=$(kctl -n "$ns" get pods -o json 2>/dev/null \
+      | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+bad=[]
+for p in d.get('items',[]):
+    cs=[c['name'] for c in p['spec'].get('containers',[])]
+    if '${expected_containers}' not in cs:
+        bad.append(p['metadata']['name'])
+print(' '.join(bad))
+" 2>/dev/null || true)
+    if [[ -n "$missing" ]]; then
+      err "sidecar ${expected_containers} sigue ausente en: $missing"
+      return 1
+    fi
+  fi
+  ok "sidecar ${expected_containers} presente en todos los pods de ${ns}"
+  return 0
+}
+
+# Valida que el control realmente esté activo (no solo que los manifests se
+# aplicaran). Cada control tiene una invariante observable distinta.
+validate_control() {
+  local ctrl="$1" var="$2" ns="$3" host="$4" port="$5"
+  case "$ctrl" in
+    C2)
+      if [[ "$var" == "istio-mtls" || "$var" == "linkerd-mtls" ]]; then
+        ensure_sidecars "$ns" "$var" || return 1
+        # Verifica PeerAuthentication STRICT (Istio) o anotación inject (Linkerd)
+        if [[ "$var" == "istio-mtls" ]]; then
+          local mode
+          mode=$(kctl -n "$ns" get peerauthentication -o jsonpath='{.items[*].spec.mtls.mode}' 2>/dev/null)
+          [[ "$mode" == *STRICT* ]] && ok "PeerAuthentication STRICT activo en $ns" \
+                                    || warn "PeerAuthentication no STRICT en $ns (mode='$mode')"
+        fi
+      fi
+      ;;
+    C3)
+      # NetworkPolicies deben existir si la variante no es baseline
+      if [[ "$var" != "baseline" ]]; then
+        local n_pols
+        n_pols=$(kctl -n "$ns" get netpol --no-headers 2>/dev/null | wc -l)
+        if [[ "$n_pols" -lt 1 ]]; then
+          err "C3/$var: NetworkPolicy esperada en $ns pero hay $n_pols"
+          return 1
+        fi
+        ok "C3/$var: $n_pols NetworkPolicies activas"
+      fi
+      ;;
+    C4)
+      # Verifica que el ingress tenga la annotation de rate-limit
+      if [[ "$var" != "baseline" ]]; then
+        local has_limit
+        has_limit=$(kctl -n "$ns" get ingress -o jsonpath='{.items[*].metadata.annotations.nginx\.ingress\.kubernetes\.io/limit-rpm}' 2>/dev/null)
+        if [[ -z "$has_limit" ]]; then
+          warn "C4/$var: ingress sin annotation limit-rpm (puede usar otra forma)"
+        else
+          ok "C4/$var: limit-rpm=$has_limit en ingress"
+        fi
+      fi
+      ;;
+  esac
+  return 0
 }
 
 smoke_check() {
@@ -217,7 +329,23 @@ for SC in "${FILTERED[@]}"; do
   log "================ ${CTRL} / ${VAR}  (ns=${NS}, ${HOST}:${PORT}) ================"
 
   apply_scenario "$CTRL" "$VAR"
-  wait_rollout "$NS"
+  if ! wait_rollout "$NS"; then
+    err "rollout incompleto en $NS → escenario omitido (${REPLICAS} réplicas perdidas)"
+    for ((r=1;r<=REPLICAS;r++)); do
+      printf "%s,%s,%s,%s,%s,%s\n" "$(date -Iseconds)" "$CTRL" "$VAR" "$VUS" "$r" "rollout_failed" >> "$INVALID_CSV"
+      COUNT=$((COUNT+1))
+    done
+    continue
+  fi
+
+  if ! validate_control "$CTRL" "$VAR" "$NS" "$HOST" "$PORT"; then
+    err "validación de control falló para $CTRL/$VAR → escenario omitido"
+    for ((r=1;r<=REPLICAS;r++)); do
+      printf "%s,%s,%s,%s,%s,%s\n" "$(date -Iseconds)" "$CTRL" "$VAR" "$VUS" "$r" "control_validation_failed" >> "$INVALID_CSV"
+      COUNT=$((COUNT+1))
+    done
+    continue
+  fi
 
   if ! smoke_check "$HOST" "$PORT"; then
     err "smoke FAIL ${CTRL}/${VAR} → escenario omitido (${REPLICAS} réplicas perdidas)"

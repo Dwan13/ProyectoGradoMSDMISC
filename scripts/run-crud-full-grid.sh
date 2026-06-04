@@ -27,7 +27,8 @@ ORCH="${ROOT_DIR}/scripts/run-crud-experiment.sh"
 VUS_LEVELS="${VUS_LEVELS:-1 5 10 20}"
 REPLICAS="${REPLICAS:-8}"
 DURATION="${DURATION:-20s}"
-WARMUP="${WARMUP:-5s}"
+WARMUP="${WARMUP:-10s}"
+SKIP_PREFLIGHT="${SKIP_PREFLIGHT:-0}"
 
 STAMP="$(date +%Y%m%d_%H%M%S)"
 GRID_DIR="${ROOT_DIR}/Testing/results/auto_runs/crud_grid_${STAMP}"
@@ -45,7 +46,18 @@ log "Grid: 12 escenarios x VUS={${VUS_LEVELS}} x REPLICAS=${REPLICAS}"
 log "Duracion=${DURATION}  Warmup=${WARMUP}"
 log "Salida: ${GRID_DIR}"
 log "===================================================================="
-
+# Preflight obligatorio: aborta si el entorno no garantiza reproducibilidad
+if [[ "$SKIP_PREFLIGHT" != "1" ]]; then
+  log ""
+  log "Ejecutando preflight-check..."
+  if ! bash "${ROOT_DIR}/scripts/preflight-check.sh" 2>&1 | tee -a "$MASTER_LOG"; then
+    err "PREFLIGHT FALLÓ → abortando grid (use SKIP_PREFLIGHT=1 para ignorar bajo tu propio riesgo)"
+    exit 2
+  fi
+  ok "preflight OK → iniciando grid"
+else
+  log "SKIP_PREFLIGHT=1 → preflight omitido (no se garantiza reproducibilidad)"
+fi
 TOTAL=0
 N_LEVELS=$(echo "$VUS_LEVELS" | wc -w)
 TOTAL_EXPECTED=$(( 12 * REPLICAS * N_LEVELS ))

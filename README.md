@@ -150,15 +150,71 @@ Validado en **Ubuntu 22.04 LTS** (también compatible con WSL2 + Ubuntu si se us
 
 ### Software base
 
-| Herramienta | Versión probada | Instalación |
+Las versiones listadas son las **probadas y validadas**. Versiones más recientes pueden funcionar pero NO garantizan reproducibilidad (cambios de CRDs en Istio/Linkerd, renombrado de Services en charts de Kong, etc.).
+
+| Herramienta | Versión fijada | Instalación |
 |---|---|---|
-| MicroK8s | 1.28+ | `sudo snap install microk8s --classic` |
-| k6 | ≥ 0.45 | `bash scripts/install_k6.sh` |
-| Python | ≥ 3.10 | nativo en Ubuntu 22.04 |
-| Docker / buildah | cualquiera reciente | `sudo snap install docker` o `apt install docker.io` |
-| Istio CLI (`istioctl`) | 1.20+ | https://istio.io/latest/docs/setup/getting-started/ |
-| Linkerd CLI (`linkerd`) | edge-24.x | https://linkerd.io/2/getting-started/ |
-| Kong Ingress Controller | 3.x | helm (paso 3 de la replicación) |
+| MicroK8s | **1.28/stable** | `sudo snap install microk8s --classic --channel=1.28/stable` |
+| CNI (auto con MicroK8s 1.28) | **Calico v3.26** | habilitado por defecto — **OBLIGATORIO** para C3 |
+| k6 | **≥ 0.49** | `bash scripts/install_k6.sh` |
+| Python | **3.10–3.12** | nativo en Ubuntu 22.04 |
+| Docker | **24.x** | `sudo apt install docker.io` |
+| Istio CLI (`istioctl`) | **1.20.0 exacto** | `curl -L https://istio.io/downloadIstio \| ISTIO_VERSION=1.20.0 sh -` |
+| Linkerd CLI (`linkerd`) | **stable-2.14.10** | `curl --proto '=https' -sSfL https://run.linkerd.io/install \| LINKERD2_VERSION=stable-2.14.10 sh` |
+| Kong Helm chart | **2.38.0 exacto** | `helm install kong kong/kong --version 2.38.0` |
+| Helm | **≥ 3.13** | `sudo snap install helm --classic` |
+| `jq` | cualquiera | `sudo apt install jq` |
+
+> **CNI → NetworkPolicies.** MicroK8s 1.28 trae Calico por defecto, que es el único CNI listado en la matriz oficial de Kubernetes con enforcement completo de `NetworkPolicy`. Si reemplazas el CNI por flannel, **los escenarios de C3/strict pasarán los tests sin bloquear realmente** (falso negativo silencioso). `scripts/preflight-check.sh` lo verifica automáticamente.
+
+---
+
+## Garantía de reproducibilidad
+
+La reproducibilidad de este experimento es **estadística, no determinística run-by-run**. Cumplir las condiciones mínimas del entorno NO es suficiente por sí solo: existen 8 fuentes documentadas de variabilidad que el pipeline mitiga, pero ninguna sola ejecución de una réplica está garantizada.
+
+### Fuentes de variabilidad mitigadas automáticamente
+
+| # | Riesgo | Mitigación automática | Verificable con |
+|---|---|---|---|
+| 1 | Readiness probes en timeout tras `kubectl apply` | `wait_rollout` estricto (240s + 120s pods Ready) | logs del orquestador |
+| 2 | Sidecar mTLS no inyectado en pods preexistentes | `ensure_sidecars` reinicia deployments si falta `istio-proxy`/`linkerd-proxy` | `kubectl get pods -o yaml` |
+| 3 | NetworkPolicies aceptadas pero no enforced (CNI flannel) | `preflight-check.sh` valida CNI = Calico/Cilium | `scripts/preflight-check.sh` |
+| 4 | Imagen no publicada en registry local | preflight verifica `/v2/_catalog` + tag `v1` por servicio | preflight |
+| 5 | Host virtual no resuelve | preflight verifica los 11 hosts en `/etc/hosts` | preflight (con `--fix`) |
+| 6 | Rollback de versión de Istio/Linkerd/Kong | versiones fijadas exactas en la tabla anterior | `istioctl version`, `linkerd version` |
+| 7 | Cachés/JIT/pool de conexiones fríos | `WARMUP=10s` por defecto antes de cada réplica | logs (`warmup done (N requests)`) |
+| 8 | Recursos del host bajo presión | preflight verifica RAM ≥ 4 GB libres, load < nCPUs | preflight |
+
+### Validaciones por control (en cada escenario, antes de medir)
+
+El orquestador ejecuta `validate_control()` después del rollout y antes del smoke test. Si la validación falla, el escenario se omite y se anota en `invalid-scenarios.csv` con la razón exacta:
+
+| Control | Invariante verificada | Acción si falla |
+|---|---|---|
+| **C1** | Ingress responde 200 a `/auth/login` (smoke) | omite escenario, reason=`smoke_failed` |
+| **C2** (istio/linkerd-mtls) | Sidecar `istio-proxy`/`linkerd-proxy` presente en todos los pods del namespace + `PeerAuthentication mode=STRICT` (Istio) | reinicia deployments y reintenta; si persiste → `control_validation_failed` |
+| **C3** (basic/strict) | `kubectl get netpol` devuelve ≥ 1 política activa en el namespace | omite escenario, reason=`control_validation_failed` |
+| **C4** (moderate/strict) | Annotation `nginx.ingress.kubernetes.io/limit-rpm` presente en el Ingress | advertencia (no aborta, métrica de 429s lo verifica post-hoc) |
+
+### Replicación estadística
+
+La matriz por defecto usa **8 réplicas × 4 niveles VUS × 12 escenarios = 384 réplicas**. Esto absorbe outliers transitorios (1–2 réplicas anomalas no cambian el resultado del Kruskal-Wallis con α=0.05). Si una réplica individual falló, queda registrada en `invalid-scenarios.csv` y el análisis estadístico la excluye explícitamente.
+
+### Procedimiento blindado
+
+```bash
+# 1. Verifica entorno (aborta si algo crucial falta)
+bash scripts/preflight-check.sh --fix
+
+# 2. Smoke run obligatorio: 1 escenario, 1 réplica, 10s — valida pipeline
+bash scripts/run-crud-experiment.sh --scenario C1 --vus 1 --replicas 1 --duration 10s
+
+# 3. Campaña completa (grid corre preflight de nuevo internamente)
+nohup bash scripts/run-crud-full-grid.sh > /tmp/crud-full-grid.log 2>&1 &
+```
+
+Si cualquiera de los 3 pasos falla, NO continúes a los siguientes — el origen del fallo debe corregirse antes para preservar la validez interna de las mediciones.
 
 ---
 
@@ -292,7 +348,18 @@ Apagar al terminar:
 bash scripts/monitoring-down.sh
 ```
 
-### Paso 8 — Smoke test (1 escenario, 1 réplica)
+### Paso 8 — Preflight check (OBLIGATORIO antes de medir)
+
+Valida que las 8 fuentes de variabilidad documentadas en "Garantía de reproducibilidad" estén controladas. **No saltes este paso**: sin preflight verde, los resultados no son comparables con los de la tesis.
+
+```bash
+bash scripts/preflight-check.sh          # solo valida
+bash scripts/preflight-check.sh --fix    # corrige /etc/hosts automáticamente
+```
+
+Salida esperada: `✓ Entorno LISTO para ejecutar el experimento` y `Fallos críticos: 0`. Si reporta fallos, corrígelos antes de continuar; las advertencias son informativas (p.ej. Linkerd ausente solo importa si vas a correr C2/linkerd-mtls).
+
+### Paso 9 — Smoke test (1 escenario, 1 réplica)
 
 Antes de la campaña completa, valida que todo funciona con un solo escenario:
 
@@ -311,7 +378,7 @@ Si falla, revisa:
 - `Testing/results/auto_runs/.../invalid-scenarios.csv` (motivo del rechazo)
 - `Testing/results/auto_runs/.../logs/*.log` (output crudo de k6)
 
-### Paso 9 — Ejecutar la campaña completa (matriz factorial)
+### Paso 10 — Ejecutar la campaña completa (matriz factorial)
 
 ```bash
 nohup bash scripts/run-crud-full-grid.sh > /tmp/crud-full-grid.log 2>&1 &
@@ -333,7 +400,7 @@ Salida consolidada en `Testing/results/auto_runs/crud_grid_<TIMESTAMP>/`:
 - `resource_metrics_all.csv` — CPU/mem por pod después de cada réplica
 - `grid.log` — log maestro del grid
 
-### Paso 10 — Generar análisis estadístico y reporte
+### Paso 11 — Generar análisis estadístico y reporte
 
 ```bash
 # Análisis Kruskal-Wallis + tamaño de efecto (ε²)
