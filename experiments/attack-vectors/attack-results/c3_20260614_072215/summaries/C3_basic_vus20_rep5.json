@@ -1,0 +1,261 @@
+{
+    "metrics": {
+        "login_success_total": {
+            "rate": 31.158686499777502,
+            "count": 645
+        },
+        "http_req_duration{expected_response:true}": {
+            "med": 46.297,
+            "max": 404.189399,
+            "p(90)": 80.32746,
+            "p(95)": 90.34862,
+            "avg": 46.84418885935771,
+            "min": 1.8149
+        },
+        "crud_list_success_total": {
+            "rate": 31.158686499777502,
+            "count": 645
+        },
+        "crud_create_success_total": {
+            "count": 645,
+            "rate": 31.158686499777502,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "crud_read_latency_ms": {
+            "p(90)": 70.54859,
+            "p(95)": 77.53405,
+            "avg": 48.161363624806235,
+            "min": 11.6953,
+            "med": 48.12195,
+            "max": 368.789899
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 4515,
+            "thresholds": {
+                "rate<0.05": false
+            },
+            "value": 0
+        },
+        "http_req_blocked": {
+            "min": 0.0001,
+            "med": 0.0003,
+            "max": 16.404,
+            "p(90)": 0.0005,
+            "p(95)": 0.0005,
+            "avg": 0.048932934662244715
+        },
+        "data_sent": {
+            "count": 487374,
+            "rate": 23544.0832157249
+        },
+        "data_received": {
+            "count": 3355219,
+            "rate": 162084.05730092555
+        },
+        "http_req_tls_handshaking": {
+            "med": 0,
+            "max": 14.3718,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0.03814823920265781,
+            "min": 0
+        },
+        "iterations": {
+            "count": 645,
+            "rate": 31.158686499777502
+        },
+        "checks": {
+            "passes": 5805,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.95": false
+            },
+            "value": 1
+        },
+        "http_req_sending": {
+            "med": 0.0957,
+            "max": 4.8108,
+            "p(90)": 0.27563999999999994,
+            "p(95)": 0.40649,
+            "avg": 0.14534008837209308,
+            "min": 0.0266
+        },
+        "crud_update_latency_ms": {
+            "avg": 66.05257764496116,
+            "min": 16.7098,
+            "med": 67.3889,
+            "max": 403.199499,
+            "p(90)": 96.17872000000001,
+            "p(95)": 106.38219999999998
+        },
+        "crud_read_success_total": {
+            "count": 1290,
+            "rate": 62.317372999555005,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "iteration_duration": {
+            "p(90)": 753.6380994000001,
+            "p(95)": 826.8246599999998,
+            "avg": 630.6263461333335,
+            "min": 394.587799,
+            "med": 644.645299,
+            "max": 1021.551499
+        },
+        "http_req_duration": {
+            "avg": 46.84418885935771,
+            "min": 1.8149,
+            "med": 46.297,
+            "max": 404.189399,
+            "p(90)": 80.32746,
+            "p(95)": 90.34862,
+            "thresholds": {
+                "p(95)<700": false
+            }
+        },
+        "crud_list_latency_ms": {
+            "med": 43.0625,
+            "max": 377.002899,
+            "p(90)": 69.72046,
+            "p(95)": 77.24145999999999,
+            "avg": 45.20488027596898,
+            "min": 12.599
+        },
+        "crud_delete_latency_ms": {
+            "min": 15.4525,
+            "med": 48.5782,
+            "max": 385.362599,
+            "p(90)": 78.86094,
+            "p(95)": 91.94507999999982,
+            "avg": 53.44174509302327
+        },
+        "http_req_waiting": {
+            "avg": 45.596177364562614,
+            "min": 1.4244,
+            "med": 45.0531,
+            "max": 398.475099,
+            "p(90)": 78.4293,
+            "p(95)": 88.15359000000001
+        },
+        "crud_delete_success_total": {
+            "count": 645,
+            "rate": 31.158686499777502,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "http_req_connecting": {
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0.009212491694352159,
+            "min": 0,
+            "med": 0,
+            "max": 4.7277
+        },
+        "crud_update_success_total": {
+            "rate": 31.158686499777502,
+            "count": 645,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "vus": {
+            "value": 20,
+            "min": 20,
+            "max": 20
+        },
+        "crud_create_latency_ms": {
+            "p(95)": 98.48089999999998,
+            "avg": 61.54023485736435,
+            "min": 16.0317,
+            "med": 61.6885,
+            "max": 404.189399,
+            "p(90)": 89.46632000000001
+        },
+        "vus_max": {
+            "max": 20,
+            "value": 20,
+            "min": 20
+        },
+        "http_reqs": {
+            "count": 4515,
+            "rate": 218.11080549844252
+        },
+        "http_req_receiving": {
+            "max": 10.9591,
+            "p(90)": 2.96158,
+            "p(95)": 4.25255,
+            "avg": 1.1026714064230372,
+            "min": 0.0141,
+            "med": 0.5386
+        }
+    },
+    "root_group": {
+        "groups": {},
+        "checks": {
+                "login 200": {
+                    "passes": 645,
+                    "fails": 0,
+                    "name": "login 200",
+                    "path": "::login 200",
+                    "id": "48b06dc5cde7f6ebb606ad7da726a2a5"
+                },
+                "login has token": {
+                    "id": "76fad3378234b1d9b3859991679a6c46",
+                    "passes": 645,
+                    "fails": 0,
+                    "name": "login has token",
+                    "path": "::login has token"
+                },
+                "list 200": {
+                    "name": "list 200",
+                    "path": "::list 200",
+                    "id": "bb957fc3b3b94304050fa1ff782f2f89",
+                    "passes": 645,
+                    "fails": 0
+                },
+                "create 200": {
+                    "name": "create 200",
+                    "path": "::create 200",
+                    "id": "3b3864655d7bdb04926571b6f6406bf6",
+                    "passes": 645,
+                    "fails": 0
+                },
+                "create has id": {
+                    "name": "create has id",
+                    "path": "::create has id",
+                    "id": "1240f53b1f661fea5e53d08b053383ad",
+                    "passes": 645,
+                    "fails": 0
+                },
+                "read 200": {
+                    "passes": 1290,
+                    "fails": 0,
+                    "name": "read 200",
+                    "path": "::read 200",
+                    "id": "0e2edf58435ab027aec533a7b02a45ba"
+                },
+                "update 200": {
+                    "fails": 0,
+                    "name": "update 200",
+                    "path": "::update 200",
+                    "id": "7ea104c1961d25326c0409f06885ea15",
+                    "passes": 645
+                },
+                "delete 2xx": {
+                    "passes": 645,
+                    "fails": 0,
+                    "name": "delete 2xx",
+                    "path": "::delete 2xx",
+                    "id": "4ac674ed73a9b6950c11e4d7bba721c5"
+                }
+            },
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+}

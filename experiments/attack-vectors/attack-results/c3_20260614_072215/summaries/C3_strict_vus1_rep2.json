@@ -1,0 +1,269 @@
+{
+    "metrics": {
+        "data_received": {
+            "count": 4186,
+            "rate": 157.65088974661916
+        },
+        "http_req_connecting": {
+            "avg": 0.03102857142857143,
+            "min": 0,
+            "med": 0,
+            "max": 0.2172,
+            "p(90)": 0.08688000000000008,
+            "p(95)": 0.15203999999999984
+        },
+        "crud_list_fail_total": {
+            "count": 1,
+            "rate": 0.03766146434462952
+        },
+        "crud_delete_fail_total": {
+            "count": 1,
+            "rate": 0.03766146434462952
+        },
+        "iteration_duration": {
+            "p(90)": 26552.180236,
+            "p(95)": 26552.180236,
+            "avg": 26552.180236,
+            "min": 26552.180236,
+            "med": 26552.180236,
+            "max": 26552.180236
+        },
+        "http_req_receiving": {
+            "med": 0.0937,
+            "max": 0.6357,
+            "p(90)": 0.3428400000000002,
+            "p(95)": 0.4892699999999997,
+            "avg": 0.16678571428571426,
+            "min": 0.0427
+        },
+        "iterations": {
+            "rate": 0.03766146434462952,
+            "count": 1
+        },
+        "http_req_sending": {
+            "min": 0.065,
+            "med": 0.0963,
+            "max": 0.263,
+            "p(90)": 0.24224,
+            "p(95)": 0.25261999999999996,
+            "avg": 0.13924285714285717
+        },
+        "http_req_duration": {
+            "max": 21125.015619,
+            "p(90)": 10469.881819200007,
+            "p(95)": 15797.448719099986,
+            "avg": 3749.354361857143,
+            "min": 0.3403,
+            "med": 320.920505,
+            "thresholds": {
+                "p(95)<700": true
+            }
+        },
+        "crud_list_latency_ms": {
+            "avg": 3366.459286,
+            "min": 3366.459286,
+            "med": 3366.459286,
+            "max": 3366.459286,
+            "p(90)": 3366.459286,
+            "p(95)": 3366.459286
+        },
+        "data_sent": {
+            "count": 2586,
+            "rate": 97.39254679521193
+        },
+        "http_req_failed": {
+            "passes": 3,
+            "fails": 4,
+            "thresholds": {
+                "rate<0.05": true
+            },
+            "value": 0.42857142857142855
+        },
+        "crud_read_latency_ms": {
+            "med": 160.6304025,
+            "max": 320.920505,
+            "p(90)": 288.8624845,
+            "p(95)": 304.89149475,
+            "avg": 160.6304025,
+            "min": 0.3403
+        },
+        "crud_create_success_total": {
+            "count": 1,
+            "rate": 0.03766146434462952,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "crud_read_success_total": {
+            "count": 1,
+            "rate": 0.03766146434462952,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "crud_update_success_total": {
+            "count": 1,
+            "rate": 0.03766146434462952,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "crud_read_fail_total": {
+            "count": 1,
+            "rate": 0.03766146434462952
+        },
+        "login_success_total": {
+            "count": 1,
+            "rate": 0.03766146434462952
+        },
+        "http_reqs": {
+            "count": 7,
+            "rate": 0.2636302504124066
+        },
+        "vus": {
+            "min": 1,
+            "max": 1,
+            "value": 1
+        },
+        "crud_create_latency_ms": {
+            "avg": 1429.532423,
+            "min": 1429.532423,
+            "med": 1429.532423,
+            "max": 1429.532423,
+            "p(90)": 1429.532423,
+            "p(95)": 1429.532423
+        },
+        "http_req_blocked": {
+            "avg": 0.4854857142857143,
+            "min": 0.0002,
+            "med": 0.0003,
+            "max": 3.3964,
+            "p(90)": 1.358920000000001,
+            "p(95)": 2.3776599999999974
+        },
+        "http_req_tls_handshaking": {
+            "p(95)": 2.091389999999998,
+            "avg": 0.4268142857142857,
+            "min": 0,
+            "med": 0,
+            "max": 2.9877,
+            "p(90)": 1.195080000000001
+        },
+        "crud_delete_latency_ms": {
+            "p(90)": 0.3908,
+            "p(95)": 0.3908,
+            "avg": 0.3908,
+            "min": 0.3908,
+            "med": 0.3908,
+            "max": 0.3908
+        },
+        "http_req_duration{expected_response:true}": {
+            "avg": 5719.572536750001,
+            "min": 2.8216,
+            "med": 875.2264640000001,
+            "max": 21125.015619,
+            "p(90)": 15216.370660200006,
+            "p(95)": 18170.693139599993
+        },
+        "crud_delete_success_total": {
+            "count": 0,
+            "rate": 0,
+            "thresholds": {
+                "count>0": true
+            }
+        },
+        "crud_update_latency_ms": {
+            "avg": 21125.015619,
+            "min": 21125.015619,
+            "med": 21125.015619,
+            "max": 21125.015619,
+            "p(90)": 21125.015619,
+            "p(95)": 21125.015619
+        },
+        "checks": {
+            "passes": 6,
+            "fails": 3,
+            "thresholds": {
+                "rate>0.95": true
+            },
+            "value": 0.6666666666666666
+        },
+        "vus_max": {
+            "min": 1,
+            "max": 1,
+            "value": 1
+        },
+        "http_req_waiting": {
+            "avg": 3749.0483332857143,
+            "min": 0.2114,
+            "med": 320.676605,
+            "max": 21124.764019,
+            "p(90)": 10469.350319200006,
+            "p(95)": 15797.057169099986
+        }
+    },
+    "root_group": {
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {},
+        "checks": {
+                "login 200": {
+                    "name": "login 200",
+                    "path": "::login 200",
+                    "id": "48b06dc5cde7f6ebb606ad7da726a2a5",
+                    "passes": 1,
+                    "fails": 0
+                },
+                "login has token": {
+                    "name": "login has token",
+                    "path": "::login has token",
+                    "id": "76fad3378234b1d9b3859991679a6c46",
+                    "passes": 1,
+                    "fails": 0
+                },
+                "list 200": {
+                    "id": "bb957fc3b3b94304050fa1ff782f2f89",
+                    "passes": 0,
+                    "fails": 1,
+                    "name": "list 200",
+                    "path": "::list 200"
+                },
+                "create 200": {
+                    "path": "::create 200",
+                    "id": "3b3864655d7bdb04926571b6f6406bf6",
+                    "passes": 1,
+                    "fails": 0,
+                    "name": "create 200"
+                },
+                "create has id": {
+                    "name": "create has id",
+                    "path": "::create has id",
+                    "id": "1240f53b1f661fea5e53d08b053383ad",
+                    "passes": 1,
+                    "fails": 0
+                },
+                "read 200": {
+                    "fails": 1,
+                    "name": "read 200",
+                    "path": "::read 200",
+                    "id": "0e2edf58435ab027aec533a7b02a45ba",
+                    "passes": 1
+                },
+                "update 200": {
+                    "id": "7ea104c1961d25326c0409f06885ea15",
+                    "passes": 1,
+                    "fails": 0,
+                    "name": "update 200",
+                    "path": "::update 200"
+                },
+                "delete 2xx": {
+                    "id": "4ac674ed73a9b6950c11e4d7bba721c5",
+                    "passes": 0,
+                    "fails": 1,
+                    "name": "delete 2xx",
+                    "path": "::delete 2xx"
+                }
+            },
+        "name": ""
+    }
+}
