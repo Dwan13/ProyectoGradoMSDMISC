@@ -94,7 +94,12 @@ ProyectoGradoMSDMISC/
 │   │   └── istio/                      # namespace/ + gateway + virtualservice
 │   ├── 02-mtls-service-mesh-realistic/
 │   ├── 03-network-policies-realistic/
-│   └── 04-rate-limiting-realistic/
+│   ├── 04-rate-limiting-realistic/
+│   └── attack-vectors/                 # Validación de vectores de ataque (post-defensa)
+│       ├── validate-c3-lateral-movement.sh   # C3: kubectl exec → postgres pivot + cross-ns
+│       ├── validate-c4-brute-force.sh        # C4: 500 curl paralelos → brute force
+│       ├── c4-brute-force-k6.js              # C4: versión k6 con métricas detalladas
+│       └── run-attack-validation.sh          # Wrapper: corre C3 + C4 en secuencia
 │
 ├── RealisticServices/                  # Codigo fuente de los microservicios
 │   ├── api-service/                    # FastAPI: orquestacion CRUD + JWT
@@ -150,15 +155,71 @@ Validado en **Ubuntu 22.04 LTS** (también compatible con WSL2 + Ubuntu si se us
 
 ### Software base
 
-| Herramienta | Versión probada | Instalación |
+Las versiones listadas son las **probadas y validadas**. Versiones más recientes pueden funcionar pero NO garantizan reproducibilidad (cambios de CRDs en Istio/Linkerd, renombrado de Services en charts de Kong, etc.).
+
+| Herramienta | Versión fijada | Instalación |
 |---|---|---|
-| MicroK8s | 1.28+ | `sudo snap install microk8s --classic` |
-| k6 | ≥ 0.45 | `bash scripts/install_k6.sh` |
-| Python | ≥ 3.10 | nativo en Ubuntu 22.04 |
-| Docker / buildah | cualquiera reciente | `sudo snap install docker` o `apt install docker.io` |
-| Istio CLI (`istioctl`) | 1.20+ | https://istio.io/latest/docs/setup/getting-started/ |
-| Linkerd CLI (`linkerd`) | edge-24.x | https://linkerd.io/2/getting-started/ |
-| Kong Ingress Controller | 3.x | helm (paso 3 de la replicación) |
+| MicroK8s | **1.28/stable** | `sudo snap install microk8s --classic --channel=1.28/stable` |
+| CNI (auto con MicroK8s 1.28) | **Calico v3.26** | habilitado por defecto — **OBLIGATORIO** para C3 |
+| k6 | **≥ 0.49** | `bash scripts/install_k6.sh` |
+| Python | **3.10–3.12** | nativo en Ubuntu 22.04 |
+| Docker | **24.x** | `sudo apt install docker.io` |
+| Istio CLI (`istioctl`) | **1.20.0 exacto** | `curl -L https://istio.io/downloadIstio \| ISTIO_VERSION=1.20.0 sh -` |
+| Linkerd CLI (`linkerd`) | **stable-2.14.10** | `curl --proto '=https' -sSfL https://run.linkerd.io/install \| LINKERD2_VERSION=stable-2.14.10 sh` |
+| Kong Helm chart | **2.38.0 exacto** | `helm install kong kong/kong --version 2.38.0` |
+| Helm | **≥ 3.13** | `sudo snap install helm --classic` |
+| `jq` | cualquiera | `sudo apt install jq` |
+
+> **CNI → NetworkPolicies.** MicroK8s 1.28 trae Calico por defecto, que es el único CNI listado en la matriz oficial de Kubernetes con enforcement completo de `NetworkPolicy`. Si reemplazas el CNI por flannel, **los escenarios de C3/strict pasarán los tests sin bloquear realmente** (falso negativo silencioso). `scripts/preflight-check.sh` lo verifica automáticamente.
+
+---
+
+## Garantía de reproducibilidad
+
+La reproducibilidad de este experimento es **estadística, no determinística run-by-run**. Cumplir las condiciones mínimas del entorno NO es suficiente por sí solo: existen 8 fuentes documentadas de variabilidad que el pipeline mitiga, pero ninguna sola ejecución de una réplica está garantizada.
+
+### Fuentes de variabilidad mitigadas automáticamente
+
+| # | Riesgo | Mitigación automática | Verificable con |
+|---|---|---|---|
+| 1 | Readiness probes en timeout tras `kubectl apply` | `wait_rollout` estricto (240s + 120s pods Ready) | logs del orquestador |
+| 2 | Sidecar mTLS no inyectado en pods preexistentes | `ensure_sidecars` reinicia deployments si falta `istio-proxy`/`linkerd-proxy` | `kubectl get pods -o yaml` |
+| 3 | NetworkPolicies aceptadas pero no enforced (CNI flannel) | `preflight-check.sh` valida CNI = Calico/Cilium | `scripts/preflight-check.sh` |
+| 4 | Imagen no publicada en registry local | preflight verifica `/v2/_catalog` + tag `v1` por servicio | preflight |
+| 5 | Host virtual no resuelve | preflight verifica los 11 hosts en `/etc/hosts` | preflight (con `--fix`) |
+| 6 | Rollback de versión de Istio/Linkerd/Kong | versiones fijadas exactas en la tabla anterior | `istioctl version`, `linkerd version` |
+| 7 | Cachés/JIT/pool de conexiones fríos | `WARMUP=10s` por defecto antes de cada réplica | logs (`warmup done (N requests)`) |
+| 8 | Recursos del host bajo presión | preflight verifica RAM ≥ 4 GB libres, load < nCPUs | preflight |
+
+### Validaciones por control (en cada escenario, antes de medir)
+
+El orquestador ejecuta `validate_control()` después del rollout y antes del smoke test. Si la validación falla, el escenario se omite y se anota en `invalid-scenarios.csv` con la razón exacta:
+
+| Control | Invariante verificada | Acción si falla |
+|---|---|---|
+| **C1** | Ingress responde 200 a `/auth/login` (smoke) | omite escenario, reason=`smoke_failed` |
+| **C2** (istio/linkerd-mtls) | Sidecar `istio-proxy`/`linkerd-proxy` presente en todos los pods del namespace + `PeerAuthentication mode=STRICT` (Istio) | reinicia deployments y reintenta; si persiste → `control_validation_failed` |
+| **C3** (basic/strict) | `kubectl get netpol` devuelve ≥ 1 política activa en el namespace | omite escenario, reason=`control_validation_failed` |
+| **C4** (moderate/strict) | Annotation `nginx.ingress.kubernetes.io/limit-rpm` presente en el Ingress | advertencia (no aborta, métrica de 429s lo verifica post-hoc) |
+
+### Replicación estadística
+
+La matriz por defecto usa **8 réplicas × 4 niveles VUS × 12 escenarios = 384 réplicas**. Esto absorbe outliers transitorios (1–2 réplicas anomalas no cambian el resultado del Kruskal-Wallis con α=0.05). Si una réplica individual falló, queda registrada en `invalid-scenarios.csv` y el análisis estadístico la excluye explícitamente.
+
+### Procedimiento blindado
+
+```bash
+# 1. Verifica entorno (aborta si algo crucial falta)
+bash scripts/preflight-check.sh --fix
+
+# 2. Smoke run obligatorio: 1 escenario, 1 réplica, 10s — valida pipeline
+bash scripts/run-crud-experiment.sh --scenario C1 --vus 1 --replicas 1 --duration 10s
+
+# 3. Campaña completa (grid corre preflight de nuevo internamente)
+nohup bash scripts/run-crud-full-grid.sh > /tmp/crud-full-grid.log 2>&1 &
+```
+
+Si cualquiera de los 3 pasos falla, NO continúes a los siguientes — el origen del fallo debe corregirse antes para preservar la validez interna de las mediciones.
 
 ---
 
@@ -292,7 +353,18 @@ Apagar al terminar:
 bash scripts/monitoring-down.sh
 ```
 
-### Paso 8 — Smoke test (1 escenario, 1 réplica)
+### Paso 8 — Preflight check (OBLIGATORIO antes de medir)
+
+Valida que las 8 fuentes de variabilidad documentadas en "Garantía de reproducibilidad" estén controladas. **No saltes este paso**: sin preflight verde, los resultados no son comparables con los de la tesis.
+
+```bash
+bash scripts/preflight-check.sh          # solo valida
+bash scripts/preflight-check.sh --fix    # corrige /etc/hosts automáticamente
+```
+
+Salida esperada: `✓ Entorno LISTO para ejecutar el experimento` y `Fallos críticos: 0`. Si reporta fallos, corrígelos antes de continuar; las advertencias son informativas (p.ej. Linkerd ausente solo importa si vas a correr C2/linkerd-mtls).
+
+### Paso 9 — Smoke test (1 escenario, 1 réplica)
 
 Antes de la campaña completa, valida que todo funciona con un solo escenario:
 
@@ -311,7 +383,7 @@ Si falla, revisa:
 - `Testing/results/auto_runs/.../invalid-scenarios.csv` (motivo del rechazo)
 - `Testing/results/auto_runs/.../logs/*.log` (output crudo de k6)
 
-### Paso 9 — Ejecutar la campaña completa (matriz factorial)
+### Paso 10 — Ejecutar la campaña completa (matriz factorial)
 
 ```bash
 nohup bash scripts/run-crud-full-grid.sh > /tmp/crud-full-grid.log 2>&1 &
@@ -333,7 +405,7 @@ Salida consolidada en `Testing/results/auto_runs/crud_grid_<TIMESTAMP>/`:
 - `resource_metrics_all.csv` — CPU/mem por pod después de cada réplica
 - `grid.log` — log maestro del grid
 
-### Paso 10 — Generar análisis estadístico y reporte
+### Paso 11 — Generar análisis estadístico y reporte
 
 ```bash
 # Análisis Kruskal-Wallis + tamaño de efecto (ε²)
@@ -345,8 +417,6 @@ python3 scripts/build_overhead_report.py \
   --input Testing/results/auto_runs/crud_grid_<TIMESTAMP>/results_all.csv \
   --output Testing/results/auto_runs/crud_grid_<TIMESTAMP>/report/
 ```
-
-Salida: capítulo `.tex` listo para incluir en la tesis + figuras `.png/.pdf` por control.
 
 ### Ejecución dirigida (subconjuntos)
 
@@ -370,6 +440,158 @@ bash scripts/run-crud-experiment.sh --vus 20 --replicas 5 --duration 60s --warmu
 | `--duration` | `60s` | Duración de cada run k6 |
 | `--warmup` | 0 | Segundos de tráfico previo para estabilizar caches |
 | `--scenario` | (todos) | Filtro por nombre parcial (ej: `kong`, `C2`, `istio-mtls`) |
+
+---
+
+## Validación de Vectores de Ataque
+
+Esta sección documenta la validación funcional de C3 y C4 mediante ataques controlados en el entorno de laboratorio. Su propósito es demostrar que cada control **bloquea efectivamente las amenazas que afirma mitigar**, complementando las métricas de rendimiento con evidencia de efectividad de seguridad.
+
+Los scripts viven en `experiments/attack-vectors/` y están diseñados para ejecutarse sobre los mismos namespaces del experimento principal, sin necesidad de infraestructura adicional.
+
+### Prerrequisitos
+
+- Los namespaces objetivo ya están desplegados (`kubectl get pods -A | grep realistic`)
+- `curl` disponible en el sistema (WSL o Linux nativo)
+- `k6` instalado (solo para la variante k6 de C4)
+- Los hosts `*.local` resuelven a `127.0.0.1` (Paso 6 completado)
+
+### Ejecución rápida
+
+```bash
+# Ambos controles en secuencia (C3 + C4)
+bash experiments/attack-vectors/run-attack-validation.sh
+
+# Solo C3
+bash experiments/attack-vectors/run-attack-validation.sh --c3
+
+# Solo C4
+bash experiments/attack-vectors/run-attack-validation.sh --c4
+```
+
+Los resultados se guardan en `experiments/attack-vectors/attack-results/<TIMESTAMP>/`.
+
+---
+
+### C3 — Network Policies: Movimiento Lateral
+
+**Script:** `experiments/attack-vectors/validate-c3-lateral-movement.sh`
+
+**Amenaza modelada:** Un atacante compromete el pod `api-service` mediante explotación remota (RCE) y desde allí intenta pivotar hacia otros recursos no autorizados del cluster (MITRE ATT&CK T1210, CWE-284).
+
+#### Vector 1 — Pivoting a la base de datos
+
+Desde el pod `api-service` comprometido, el atacante intenta una conexión TCP directa a `postgres:5432` para exfiltrar datos sin pasar por `data-service`.
+
+```bash
+# El script ejecuta internamente algo equivalente a:
+kubectl -n <namespace> exec <api-service-pod> -- python3 -c "
+import socket, sys
+s = socket.socket(); s.settimeout(5)
+s.connect(('postgres', 5432))   # si conecta: ataque exitoso
+"
+```
+
+| Variante | Resultado esperado | Razón |
+|---|---|---|
+| **Baseline** | `CONNECT_OK` — VULNERABLE | Sin NetworkPolicy; tráfico libre |
+| **Basic** | `CONNECT_OK` — VULNERABLE | `allow-intra-namespace` permite todo el tráfico intra-ns |
+| **Strict** | `CONNECT_FAIL` (timeout) — PROTEGIDO | `api-egress` solo permite puerto 8080 a `auth-service` y `data-service`; `postgres:5432` es inalcanzable |
+
+> El timeout (5s) en Strict es comportamiento correcto: Kubernetes NetworkPolicy hace **DROP** de paquetes (no REJECT), lo que produce timeout a nivel TCP en lugar de `connection refused`. Esto confirma que el bloqueo ocurre en el kernel (eBPF/netfilter vía CNI Calico), no en la aplicación.
+
+#### Vector 2 — Acceso cross-namespace
+
+Desde un pod en el namespace `default` (simula el compromiso de otra aplicación en el mismo cluster), el atacante intenta alcanzar `data-service` del namespace objetivo.
+
+| Variante | Resultado esperado | Razón |
+|---|---|---|
+| **Baseline** | `CONNECT_OK` — VULNERABLE | Sin NetworkPolicy; cualquier pod del cluster accede |
+| **Basic** | `CONNECT_FAIL` — PROTEGIDO | `default-deny-all` bloquea todo ingress externo al namespace |
+| **Strict** | `CONNECT_FAIL` — PROTEGIDO | Ídem; además solo `api-service` puede hablar con `data-service` |
+
+#### Ejecución manual (por variante)
+
+```bash
+bash experiments/attack-vectors/validate-c3-lateral-movement.sh
+```
+
+Salida esperada (fragmento de Strict):
+
+```
+  ▷ Test: api-service → postgres:5432  [STRICT]
+  Resultado: [BLOQUEADO] postgres:5432 – timed out
+  ✔ PROTEGIDO – NetworkPolicy bloquea el acceso api-service → postgres:5432
+```
+
+---
+
+### C4 — Rate Limiting: Fuerza Bruta / Credential Stuffing
+
+**Scripts:**
+- `experiments/attack-vectors/validate-c4-brute-force.sh` — versión curl (500 requests paralelos)
+- `experiments/attack-vectors/c4-brute-force-k6.js` — versión k6 (más detalle de métricas)
+
+**Amenaza modelada:** Un atacante automatizado envía solicitudes de autenticación masivas contra `POST /auth/login` desde una sola IP, intentando adivinar credenciales (OWASP OAT-007 Credential Cracking / OAT-008 Credential Stuffing, CWE-307).
+
+#### Ejecución con curl (recomendada para demo rápida)
+
+```bash
+# Configurable: número de requests y puerto
+REQUESTS=500 CLUSTER_PORT=32167 bash experiments/attack-vectors/validate-c4-brute-force.sh
+```
+
+El script dispara 500 `curl` en background simultáneamente (sin delay) y clasifica cada respuesta:
+
+| Código HTTP | Clasificación | Significado |
+|---|---|---|
+| `200` / `401` | Procesados | El intento llegó al backend |
+| `503` + body HTML (`nginx`) | `ratelimit_503` | **Control C4 activo** — NGINX rechazó antes del backend |
+| `503` + body JSON | `backend_503` | Fallo de fiabilidad — **no confundir con bloqueo del control** |
+
+Resultados esperados con 500 requests:
+
+| Variante | Procesados | Rate-limit 503 | Tasa de bloqueo |
+|---|---|---|---|
+| **Baseline** | ~500 | 0 | 0% — VULNERABLE |
+| **Moderate** | variable | variable | parcial (límite 1200 rpm) |
+| **Strict** | ~300 (burst) | >200 | >40% — PROTEGIDO |
+
+#### Ejecución con k6 (recomendada para métricas de tesis)
+
+```bash
+# Baseline (sin rate limiting)
+k6 run -e TARGET=without-rate-limiting -e PORT=32167 -e VUS=5 -e DURATION=20s \
+  experiments/attack-vectors/c4-brute-force-k6.js
+
+# Strict (300 rpm)
+k6 run -e TARGET=strict-rate-limiting  -e PORT=32167 -e VUS=5 -e DURATION=20s \
+  experiments/attack-vectors/c4-brute-force-k6.js
+```
+
+El resumen k6 separa explícitamente `ratelimit_503` (control C4) de `backend_503` (fiabilidad):
+
+```
+ Total requests:                      3000
+ Llegaron al backend     (200/401):    280
+ Bloqueados por NGINX RL (503 HTML):  2715   ← control C4
+ Fallos de backend       (503 JSON):     5   ← fiabilidad (≠ C4)
+ Tasa de bloqueo (control C4):       90.5%
+```
+
+#### Distinción 503 rate-limit vs 503 backend
+
+La distinción es necesaria para no atribuir fallos de fiabilidad como efectividad del control:
+
+| Característica | 503 Rate-limit (NGINX) | 503 Backend failure |
+|---|---|---|
+| **Origen** | NGINX rechaza antes de llegar al pod | El pod/servicio devuelve error |
+| **Body** | HTML: `<center>nginx</center>` | JSON: `{"detail":"..."}` |
+| **Content-Type** | `text/html` | `application/json` |
+| **Latencia típica** | 1–3 ms | 10–50 ms |
+| **Métrica asociada** | Efectividad de seguridad (C4) | Fiabilidad (ISO/IEC 25010) |
+
+El script lo verifica con `grep -qi "nginx"` sobre el body de cada respuesta 503.
 
 ---
 

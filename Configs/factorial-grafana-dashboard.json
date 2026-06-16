@@ -1,0 +1,203 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "factorial",
+    "title": "factorial",
+    "tags": ["mubench", "factorial", "experiment"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "5s",
+    "time": {
+      "from": "now-15m",
+      "to": "now"
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "namespace",
+          "type": "query",
+          "label": "Namespace",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "query": "label_values(kube_pod_info, namespace)",
+          "regex": "/realistic.*/",
+          "includeAll": true,
+          "multi": true,
+          "allValue": ".*",
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          }
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "type": "timeseries",
+        "title": "Latency p95 (ms)",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "histogram_quantile(0.95, sum by (le) (rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~\"$namespace\"}[$__rate_interval])))",
+            "legendFormat": "istio p95"
+          },
+          {
+            "refId": "B",
+            "expr": "1000 * histogram_quantile(0.95, sum by (le) (rate(nginx_ingress_controller_request_duration_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval])))",
+            "legendFormat": "nginx p95"
+          },
+          {
+            "refId": "C",
+            "expr": "1000 * histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval])))",
+            "legendFormat": "app p95"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms"
+          },
+          "overrides": []
+        }
+      },
+      {
+        "id": 2,
+        "type": "timeseries",
+        "title": "Requests per second (RPS)",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum(rate(istio_requests_total{destination_workload_namespace=~\"$namespace\"}[$__rate_interval]))",
+            "legendFormat": "istio rps"
+          },
+          {
+            "refId": "B",
+            "expr": "sum(rate(nginx_ingress_controller_requests{namespace=~\"$namespace\"}[$__rate_interval]))",
+            "legendFormat": "nginx rps"
+          },
+          {
+            "refId": "C",
+            "expr": "sum(rate(http_requests_total{namespace=~\"$namespace\"}[$__rate_interval]))",
+            "legendFormat": "app rps"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps"
+          },
+          "overrides": []
+        }
+      },
+      {
+        "id": 3,
+        "type": "timeseries",
+        "title": "Error rate (%)",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "(100 * (sum(rate(istio_requests_total{destination_workload_namespace=~\"$namespace\",response_code=~\"4..|5..\"}[$__rate_interval])) / clamp_min(sum(rate(istio_requests_total{destination_workload_namespace=~\"$namespace\"}[$__rate_interval])), 1))) or on() vector(0)",
+            "legendFormat": "istio error %"
+          },
+          {
+            "refId": "B",
+            "expr": "(100 * (sum(rate(nginx_ingress_controller_requests{namespace=~\"$namespace\",status=~\"4..|5..\"}[$__rate_interval])) / clamp_min(sum(rate(nginx_ingress_controller_requests{namespace=~\"$namespace\"}[$__rate_interval])), 1))) or on() vector(0)",
+            "legendFormat": "nginx error %"
+          },
+          {
+            "refId": "C",
+            "expr": "(100 * (sum(rate(http_requests_total{namespace=~\"$namespace\",status=~\"4..|5..\"}[$__rate_interval])) / clamp_min(sum(rate(http_requests_total{namespace=~\"$namespace\"}[$__rate_interval])), 1))) or on() vector(0)",
+            "legendFormat": "app error %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          },
+          "overrides": []
+        }
+      },
+      {
+        "id": 4,
+        "type": "timeseries",
+        "title": "CPU by service (cores)",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\",container!=\"\",container!=\"POD\",pod=~\"(api-service|auth-service|data-service|postgres).*\"}[$__rate_interval]))",
+            "legendFormat": "{{pod}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "cores"
+          },
+          "overrides": []
+        }
+      },
+      {
+        "id": 5,
+        "type": "timeseries",
+        "title": "Memory by service (MiB)",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=~\"$namespace\",container!=\"\",container!=\"POD\",pod=~\"(api-service|auth-service|data-service|postgres).*\"}) / 1024 / 1024",
+            "legendFormat": "{{pod}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "MiB"
+          },
+          "overrides": []
+        }
+      },
+      {
+        "id": 6,
+        "type": "timeseries",
+        "title": "Latency avg (ms)",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum(rate(istio_request_duration_milliseconds_sum{destination_workload_namespace=~\"$namespace\"}[$__rate_interval])) / clamp_min(sum(rate(istio_request_duration_milliseconds_count{destination_workload_namespace=~\"$namespace\"}[$__rate_interval])), 1)",
+            "legendFormat": "istio avg"
+          },
+          {
+            "refId": "B",
+            "expr": "1000 * (sum(rate(nginx_ingress_controller_request_duration_seconds_sum{namespace=~\"$namespace\"}[$__rate_interval])) / clamp_min(sum(rate(nginx_ingress_controller_request_duration_seconds_count{namespace=~\"$namespace\"}[$__rate_interval])), 1))",
+            "legendFormat": "nginx avg"
+          },
+          {
+            "refId": "C",
+            "expr": "1000 * (sum(rate(http_request_duration_seconds_sum{namespace=~\"$namespace\"}[$__rate_interval])) / clamp_min(sum(rate(http_request_duration_seconds_count{namespace=~\"$namespace\"}[$__rate_interval])), 1))",
+            "legendFormat": "app avg"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms"
+          },
+          "overrides": []
+        }
+      }
+    ]
+  },
+  "folderId": 0,
+  "overwrite": true,
+  "message": "Create/Update factorial dashboard"
+}
