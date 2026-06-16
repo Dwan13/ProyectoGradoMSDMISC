@@ -94,7 +94,12 @@ ProyectoGradoMSDMISC/
 │   │   └── istio/                      # namespace/ + gateway + virtualservice
 │   ├── 02-mtls-service-mesh-realistic/
 │   ├── 03-network-policies-realistic/
-│   └── 04-rate-limiting-realistic/
+│   ├── 04-rate-limiting-realistic/
+│   └── attack-vectors/                 # Validación de vectores de ataque (post-defensa)
+│       ├── validate-c3-lateral-movement.sh   # C3: kubectl exec → postgres pivot + cross-ns
+│       ├── validate-c4-brute-force.sh        # C4: 500 curl paralelos → brute force
+│       ├── c4-brute-force-k6.js              # C4: versión k6 con métricas detalladas
+│       └── run-attack-validation.sh          # Wrapper: corre C3 + C4 en secuencia
 │
 ├── RealisticServices/                  # Codigo fuente de los microservicios
 │   ├── api-service/                    # FastAPI: orquestacion CRUD + JWT
@@ -413,8 +418,6 @@ python3 scripts/build_overhead_report.py \
   --output Testing/results/auto_runs/crud_grid_<TIMESTAMP>/report/
 ```
 
-Salida: capítulo `.tex` listo para incluir en la tesis + figuras `.png/.pdf` por control.
-
 ### Ejecución dirigida (subconjuntos)
 
 ```bash
@@ -437,6 +440,158 @@ bash scripts/run-crud-experiment.sh --vus 20 --replicas 5 --duration 60s --warmu
 | `--duration` | `60s` | Duración de cada run k6 |
 | `--warmup` | 0 | Segundos de tráfico previo para estabilizar caches |
 | `--scenario` | (todos) | Filtro por nombre parcial (ej: `kong`, `C2`, `istio-mtls`) |
+
+---
+
+## Validación de Vectores de Ataque
+
+Esta sección documenta la validación funcional de C3 y C4 mediante ataques controlados en el entorno de laboratorio. Su propósito es demostrar que cada control **bloquea efectivamente las amenazas que afirma mitigar**, complementando las métricas de rendimiento con evidencia de efectividad de seguridad.
+
+Los scripts viven en `experiments/attack-vectors/` y están diseñados para ejecutarse sobre los mismos namespaces del experimento principal, sin necesidad de infraestructura adicional.
+
+### Prerrequisitos
+
+- Los namespaces objetivo ya están desplegados (`kubectl get pods -A | grep realistic`)
+- `curl` disponible en el sistema (WSL o Linux nativo)
+- `k6` instalado (solo para la variante k6 de C4)
+- Los hosts `*.local` resuelven a `127.0.0.1` (Paso 6 completado)
+
+### Ejecución rápida
+
+```bash
+# Ambos controles en secuencia (C3 + C4)
+bash experiments/attack-vectors/run-attack-validation.sh
+
+# Solo C3
+bash experiments/attack-vectors/run-attack-validation.sh --c3
+
+# Solo C4
+bash experiments/attack-vectors/run-attack-validation.sh --c4
+```
+
+Los resultados se guardan en `experiments/attack-vectors/attack-results/<TIMESTAMP>/`.
+
+---
+
+### C3 — Network Policies: Movimiento Lateral
+
+**Script:** `experiments/attack-vectors/validate-c3-lateral-movement.sh`
+
+**Amenaza modelada:** Un atacante compromete el pod `api-service` mediante explotación remota (RCE) y desde allí intenta pivotar hacia otros recursos no autorizados del cluster (MITRE ATT&CK T1210, CWE-284).
+
+#### Vector 1 — Pivoting a la base de datos
+
+Desde el pod `api-service` comprometido, el atacante intenta una conexión TCP directa a `postgres:5432` para exfiltrar datos sin pasar por `data-service`.
+
+```bash
+# El script ejecuta internamente algo equivalente a:
+kubectl -n <namespace> exec <api-service-pod> -- python3 -c "
+import socket, sys
+s = socket.socket(); s.settimeout(5)
+s.connect(('postgres', 5432))   # si conecta: ataque exitoso
+"
+```
+
+| Variante | Resultado esperado | Razón |
+|---|---|---|
+| **Baseline** | `CONNECT_OK` — VULNERABLE | Sin NetworkPolicy; tráfico libre |
+| **Basic** | `CONNECT_OK` — VULNERABLE | `allow-intra-namespace` permite todo el tráfico intra-ns |
+| **Strict** | `CONNECT_FAIL` (timeout) — PROTEGIDO | `api-egress` solo permite puerto 8080 a `auth-service` y `data-service`; `postgres:5432` es inalcanzable |
+
+> El timeout (5s) en Strict es comportamiento correcto: Kubernetes NetworkPolicy hace **DROP** de paquetes (no REJECT), lo que produce timeout a nivel TCP en lugar de `connection refused`. Esto confirma que el bloqueo ocurre en el kernel (eBPF/netfilter vía CNI Calico), no en la aplicación.
+
+#### Vector 2 — Acceso cross-namespace
+
+Desde un pod en el namespace `default` (simula el compromiso de otra aplicación en el mismo cluster), el atacante intenta alcanzar `data-service` del namespace objetivo.
+
+| Variante | Resultado esperado | Razón |
+|---|---|---|
+| **Baseline** | `CONNECT_OK` — VULNERABLE | Sin NetworkPolicy; cualquier pod del cluster accede |
+| **Basic** | `CONNECT_FAIL` — PROTEGIDO | `default-deny-all` bloquea todo ingress externo al namespace |
+| **Strict** | `CONNECT_FAIL` — PROTEGIDO | Ídem; además solo `api-service` puede hablar con `data-service` |
+
+#### Ejecución manual (por variante)
+
+```bash
+bash experiments/attack-vectors/validate-c3-lateral-movement.sh
+```
+
+Salida esperada (fragmento de Strict):
+
+```
+  ▷ Test: api-service → postgres:5432  [STRICT]
+  Resultado: [BLOQUEADO] postgres:5432 – timed out
+  ✔ PROTEGIDO – NetworkPolicy bloquea el acceso api-service → postgres:5432
+```
+
+---
+
+### C4 — Rate Limiting: Fuerza Bruta / Credential Stuffing
+
+**Scripts:**
+- `experiments/attack-vectors/validate-c4-brute-force.sh` — versión curl (500 requests paralelos)
+- `experiments/attack-vectors/c4-brute-force-k6.js` — versión k6 (más detalle de métricas)
+
+**Amenaza modelada:** Un atacante automatizado envía solicitudes de autenticación masivas contra `POST /auth/login` desde una sola IP, intentando adivinar credenciales (OWASP OAT-007 Credential Cracking / OAT-008 Credential Stuffing, CWE-307).
+
+#### Ejecución con curl (recomendada para demo rápida)
+
+```bash
+# Configurable: número de requests y puerto
+REQUESTS=500 CLUSTER_PORT=32167 bash experiments/attack-vectors/validate-c4-brute-force.sh
+```
+
+El script dispara 500 `curl` en background simultáneamente (sin delay) y clasifica cada respuesta:
+
+| Código HTTP | Clasificación | Significado |
+|---|---|---|
+| `200` / `401` | Procesados | El intento llegó al backend |
+| `503` + body HTML (`nginx`) | `ratelimit_503` | **Control C4 activo** — NGINX rechazó antes del backend |
+| `503` + body JSON | `backend_503` | Fallo de fiabilidad — **no confundir con bloqueo del control** |
+
+Resultados esperados con 500 requests:
+
+| Variante | Procesados | Rate-limit 503 | Tasa de bloqueo |
+|---|---|---|---|
+| **Baseline** | ~500 | 0 | 0% — VULNERABLE |
+| **Moderate** | variable | variable | parcial (límite 1200 rpm) |
+| **Strict** | ~300 (burst) | >200 | >40% — PROTEGIDO |
+
+#### Ejecución con k6 (recomendada para métricas de tesis)
+
+```bash
+# Baseline (sin rate limiting)
+k6 run -e TARGET=without-rate-limiting -e PORT=32167 -e VUS=5 -e DURATION=20s \
+  experiments/attack-vectors/c4-brute-force-k6.js
+
+# Strict (300 rpm)
+k6 run -e TARGET=strict-rate-limiting  -e PORT=32167 -e VUS=5 -e DURATION=20s \
+  experiments/attack-vectors/c4-brute-force-k6.js
+```
+
+El resumen k6 separa explícitamente `ratelimit_503` (control C4) de `backend_503` (fiabilidad):
+
+```
+ Total requests:                      3000
+ Llegaron al backend     (200/401):    280
+ Bloqueados por NGINX RL (503 HTML):  2715   ← control C4
+ Fallos de backend       (503 JSON):     5   ← fiabilidad (≠ C4)
+ Tasa de bloqueo (control C4):       90.5%
+```
+
+#### Distinción 503 rate-limit vs 503 backend
+
+La distinción es necesaria para no atribuir fallos de fiabilidad como efectividad del control:
+
+| Característica | 503 Rate-limit (NGINX) | 503 Backend failure |
+|---|---|---|
+| **Origen** | NGINX rechaza antes de llegar al pod | El pod/servicio devuelve error |
+| **Body** | HTML: `<center>nginx</center>` | JSON: `{"detail":"..."}` |
+| **Content-Type** | `text/html` | `application/json` |
+| **Latencia típica** | 1–3 ms | 10–50 ms |
+| **Métrica asociada** | Efectividad de seguridad (C4) | Fiabilidad (ISO/IEC 25010) |
+
+El script lo verifica con `grep -qi "nginx"` sobre el body de cada respuesta 503.
 
 ---
 
